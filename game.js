@@ -10,6 +10,13 @@ const CHARS = {
   maili: { name: 'Maili', color: 0xc77dff, skin: 0xf4c49c, hair: 0x5c3317 },
 };
 
+const NPC_PATROL = [
+  { x: -4, z: -3 }, { x: 2, z: -5 }, { x: -7, z: 4 }, { x: 6, z: 3 },
+  { x: 0, z: 2 }, { x: -2, z: 5 }, { x: 7, z: -4 }, { x: -5, z: 6 },
+  { x: 4, z: 6 }, { x: -8, z: 0 }, { x: 5, z: 0 }, { x: -1, z: -6 },
+  { x: 3, z: -2 }, { x: -6, z: -2 }, { x: 8, z: 5 }, { x: 0, z: -2 },
+];
+
 const HIDE_SPOTS = [
   { x: -5.5, z: -1.5, rot: 0.6, label: 'derrière le canapé' },
   { x: 7.5, z: 2.5, rot: -2.2, label: 'sous le lit' },
@@ -659,6 +666,7 @@ class BerliozHunt {
       maili.position.set(6, 0, -5);
       this.scene.add(maili);
       this.npcs = [robin, maili];
+      this.npcs.forEach((npc, i) => this.initNpcAi(npc, i));
 
       document.querySelector('.objective').textContent = `Cours te cacher ! ${HIDE_PREP_TIME}s`;
       document.getElementById('player-name').textContent = 'Berlioz 🐱';
@@ -837,23 +845,132 @@ class BerliozHunt {
     }
   }
 
+  initNpcAi(npc, index = 0) {
+    npc.userData.ai = {
+      state: 'patrol',
+      targetX: 0,
+      targetZ: 0,
+      waitLeft: index * 0.6,
+      patrolSpeed: 2.6,
+      chaseSpeed: 4.6,
+      animPhase: index * 1.7,
+      stuckTime: 0,
+    };
+    npc.userData.walking = false;
+    this.pickNpcWaypoint(npc);
+  }
+
+  pickNpcWaypoint(npc, avoid = null) {
+    const ai = npc.userData.ai;
+    if (!ai) return;
+    let best = NPC_PATROL[0];
+    let bestScore = -1;
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const wp = NPC_PATROL[Math.floor(Math.random() * NPC_PATROL.length)];
+      if (this.checkCollision(wp.x, wp.z, false)) continue;
+      const distFromNpc = Math.hypot(wp.x - npc.position.x, wp.z - npc.position.z);
+      const distFromAvoid = avoid
+        ? Math.hypot(wp.x - avoid.x, wp.z - avoid.z)
+        : distFromNpc;
+      const score = distFromAvoid + distFromNpc * 0.15 + Math.random() * 2;
+      if (score > bestScore) {
+        bestScore = score;
+        best = wp;
+      }
+    }
+    ai.targetX = best.x;
+    ai.targetZ = best.z;
+    ai.stuckTime = 0;
+  }
+
+  moveNpc(npc, dx, dz, dt, speed) {
+    const len = Math.hypot(dx, dz);
+    if (len < 0.01) {
+      npc.userData.walking = false;
+      return false;
+    }
+    dx /= len;
+    dz /= len;
+    const step = speed * dt;
+    let moved = false;
+    const nx = npc.position.x + dx * step;
+    const nz = npc.position.z + dz * step;
+    if (!this.checkCollision(nx, npc.position.z, false)) {
+      npc.position.x = nx;
+      moved = true;
+    }
+    if (!this.checkCollision(npc.position.x, nz, false)) {
+      npc.position.z = nz;
+      moved = true;
+    }
+    if (moved) {
+      npc.rotation.y = Math.atan2(dx, dz);
+      npc.userData.walking = true;
+    } else {
+      npc.userData.walking = false;
+    }
+    return moved;
+  }
+
+  updateNpc(npc, dt) {
+    const ai = npc.userData.ai;
+    if (!ai || !this.player) return;
+
+    const catDist = npc.position.distanceTo(this.player.position);
+    if (catDist < 1.5) {
+      this.triggerAttack();
+      return;
+    }
+
+    if (catDist < 4.2) {
+      ai.state = 'chase';
+    } else if (ai.state === 'chase' && catDist > 6.5) {
+      ai.state = 'patrol';
+      this.pickNpcWaypoint(npc);
+      ai.waitLeft = 0.3 + Math.random() * 0.5;
+    }
+
+    if (ai.waitLeft > 0) {
+      ai.waitLeft -= dt;
+      npc.userData.walking = false;
+      npc.rotation.y += dt * 0.8;
+      return;
+    }
+
+    let tx;
+    let tz;
+    let speed;
+    if (ai.state === 'chase') {
+      tx = this.player.position.x - npc.position.x;
+      tz = this.player.position.z - npc.position.z;
+      speed = ai.chaseSpeed;
+    } else {
+      tx = ai.targetX - npc.position.x;
+      tz = ai.targetZ - npc.position.z;
+      speed = ai.patrolSpeed;
+      if (Math.hypot(tx, tz) < 0.7) {
+        ai.waitLeft = 0.5 + Math.random() * 1.5;
+        this.pickNpcWaypoint(npc, { x: ai.targetX, z: ai.targetZ });
+        npc.userData.walking = false;
+        return;
+      }
+    }
+
+    const moved = this.moveNpc(npc, tx, tz, dt, speed);
+    if (!moved) {
+      ai.stuckTime += dt;
+      if (ai.stuckTime > 0.35) {
+        this.pickNpcWaypoint(npc);
+        ai.waitLeft = 0.2;
+      }
+    } else {
+      ai.stuckTime = 0;
+    }
+  }
+
   checkHideMode(dt) {
     if (this.gameMode !== 'hide' || !this.player || this.hidePrepLeft > 0) return;
-
-    this.npcs.forEach((npc) => {
-      const dir = new THREE.Vector3()
-        .subVectors(this.player.position, npc.position);
-      const dist = dir.length();
-      dir.normalize();
-      const speed = dist > 3 ? 2.5 : 4.5;
-      const nx = npc.position.x + dir.x * speed * dt;
-      const nz = npc.position.z + dir.z * speed * dt;
-      if (!this.checkCollision(nx, npc.position.z)) npc.position.x = nx;
-      if (!this.checkCollision(npc.position.x, nz)) npc.position.z = nz;
-      npc.rotation.y = Math.atan2(dir.x, dir.z);
-
-      if (dist < 1.5) this.triggerAttack();
-    });
+    this.npcs.forEach((npc) => this.updateNpc(npc, dt));
   }
 
   win(reason = 'found', skipRevealSounds = false) {
@@ -883,9 +1000,15 @@ class BerliozHunt {
   }
 
   triggerAttack() {
-    this.state = 'attack';
+    if (this.state !== 'playing') return;
     document.getElementById('prep-banner')?.classList.add('hidden');
     this.playGrowl();
+    if (this.gameMode === 'hide') {
+      this.state = 'caught';
+      setTimeout(() => this.lose(), 1000);
+      return;
+    }
+    this.state = 'attack';
     const positions = [
       [-10, -7], [10, -7], [-10, 7], [10, 7], [0, -8]
     ];
@@ -1236,19 +1359,21 @@ class BerliozHunt {
       || !!this.clickTarget;
     const walk = moving;
 
-    const animateHuman = (human) => {
+    const animateHuman = (human, isWalking, phase = 0) => {
       const parts = human.userData.parts;
       if (!parts) return;
-      const swing = walk ? Math.sin(t * 10) * 0.35 : 0;
+      const swing = isWalking ? Math.sin(t * 10 + phase) * 0.35 : 0;
       parts.armL.rotation.x = swing;
       parts.armR.rotation.x = -swing;
       parts.legL.rotation.x = -swing * 0.7;
       parts.legR.rotation.x = swing * 0.7;
-      parts.head.position.y = 1.22 + (walk ? Math.abs(Math.sin(t * 10)) * 0.03 : 0);
+      parts.head.position.y = 1.22 + (isWalking ? Math.abs(Math.sin(t * 10 + phase)) * 0.03 : 0);
     };
 
-    if (this.player?.userData.type) animateHuman(this.player);
-    this.npcs.forEach(animateHuman);
+    if (this.player?.userData.type) animateHuman(this.player, walk);
+    this.npcs.forEach((npc) => {
+      animateHuman(npc, !!npc.userData.walking, npc.userData.ai?.animPhase || 0);
+    });
 
     const cat = this.berlioz?.visible ? this.berlioz : (this.isCatPlayer() ? this.player : null);
     if (cat?.userData.tail) {
