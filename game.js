@@ -1,7 +1,7 @@
 const TIME_LIMIT = 15;
-const HIDE_PREP_TIME = 7;
+const HIDE_PREP_TIME = 10;
 const PLAYER_SPEED = 8;
-const CAT_SPEED = 11;
+const CAT_SPEED = 12;
 const CATCH_DISTANCE = 2;
 const WORLD_BOUNDS = { minX: -10.5, maxX: 10.5, minZ: -8.5, maxZ: 8.5 };
 
@@ -199,15 +199,19 @@ class BerliozHunt {
     this._moveDir = new THREE.Vector3();
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x7eb8e8);
+    this.scene.background = new THREE.Color(0x8ecae6);
+    this.scene.fog = new THREE.Fog(0x8ecae6, 35, 70);
 
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.85));
-    const sun = new THREE.DirectionalLight(0xfff8ee, 0.55);
+    this.scene.add(new THREE.AmbientLight(0xfff5eb, 0.72));
+    const sun = new THREE.DirectionalLight(0xfff4e0, 0.62);
     sun.position.set(10, 20, 8);
     this.scene.add(sun);
-    const fill = new THREE.DirectionalLight(0xc8e0ff, 0.35);
+    const fill = new THREE.DirectionalLight(0xb8d4ff, 0.38);
     fill.position.set(-8, 14, -6);
     this.scene.add(fill);
+    const warm = new THREE.PointLight(0xffd6a5, 0.35, 18);
+    warm.position.set(-2, 2.2, -1);
+    this.scene.add(warm);
 
     const { w, h } = this.getViewSize();
     const aspect = w / h;
@@ -259,18 +263,38 @@ class BerliozHunt {
     canvas.height = size;
     const ctx = canvas.getContext('2d');
     if (type === 'wood') {
-      ctx.fillStyle = '#c9a66b';
+      ctx.fillStyle = '#c4a06a';
       ctx.fillRect(0, 0, size, size);
-      for (let i = 0; i < 8; i++) {
-        ctx.fillStyle = i % 2 ? '#b8945f' : '#d4b07a';
-        ctx.fillRect(0, i * 16, size, 14);
+      for (let i = 0; i < 10; i++) {
+        const y = i * 13;
+        ctx.fillStyle = i % 2 ? '#b08d55' : '#d4b57c';
+        ctx.fillRect(0, y, size, 11);
+        ctx.strokeStyle = 'rgba(80, 50, 20, 0.15)';
+        ctx.beginPath();
+        ctx.moveTo(0, y + 5);
+        for (let x = 0; x <= size; x += 8) {
+          ctx.lineTo(x, y + 5 + Math.sin(x * 0.08 + i) * 2);
+        }
+        ctx.stroke();
+      }
+    } else if (type === 'carpet') {
+      ctx.fillStyle = '#6b3f28';
+      ctx.fillRect(0, 0, size, size);
+      for (let x = 0; x < size; x += 6) {
+        for (let y = 0; y < size; y += 6) {
+          ctx.fillStyle = (x + y) % 12 ? '#5a3420' : '#7a4f32';
+          ctx.fillRect(x, y, 5, 5);
+        }
       }
     } else {
-      ctx.fillStyle = '#e4e4e4';
+      ctx.fillStyle = '#ececec';
       ctx.fillRect(0, 0, size, size);
       for (let x = 0; x < size; x += 16) {
         for (let y = 0; y < size; y += 16) {
-          ctx.strokeStyle = '#cccccc';
+          const shade = ((x + y) / 16) % 2 ? '#e0e0e0' : '#f2f2f2';
+          ctx.fillStyle = shade;
+          ctx.fillRect(x + 1, y + 1, 14, 14);
+          ctx.strokeStyle = '#bdbdbd';
           ctx.strokeRect(x + 1, y + 1, 14, 14);
         }
       }
@@ -278,7 +302,7 @@ class BerliozHunt {
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
-    tex.magFilter = THREE.NearestFilter;
+    tex.magFilter = THREE.LinearFilter;
     return tex;
   }
 
@@ -321,9 +345,11 @@ class BerliozHunt {
     this.makeFloor(6, 10, 7.5, 1, 'wood', 3, 5);
     this.makeFloor(4, 4, -8, 6.5, 'tile', 2, 2);
 
+    const rugTex = this.makeTexture('carpet');
+    rugTex.repeat.set(3, 2);
     const rug = new THREE.Mesh(
       new THREE.PlaneGeometry(5, 4),
-      new THREE.MeshLambertMaterial({ color: 0x7a4f32 })
+      new THREE.MeshLambertMaterial({ map: rugTex })
     );
     rug.rotation.x = -Math.PI / 2;
     rug.position.set(-1, 0.02, -0.5);
@@ -349,6 +375,31 @@ class BerliozHunt {
     addWindow(-10.8, 0, 0);
     addWindow(0, -8.8, 0);
     addWindow(10.8, 2, 0);
+
+    const addLamp = (x, z) => {
+      this.makeBox(0.35, 0.08, 0.35, 0xdddddd, x, 2.5, z, false);
+      const bulb = new THREE.Mesh(
+        new THREE.SphereGeometry(0.18, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xfff3c4 })
+      );
+      bulb.position.set(x, 2.35, z);
+      this.scene.add(bulb);
+    };
+    addLamp(-2, -2);
+    addLamp(6, 4);
+    addLamp(-6, 5);
+
+    const addPlant = (x, z) => {
+      this.makeBox(0.35, 0.35, 0.35, 0x8b4513, x, 0, z, false);
+      const leaves = new THREE.Mesh(
+        new THREE.SphereGeometry(0.28, 8, 8),
+        new THREE.MeshLambertMaterial({ color: 0x2d6a4f })
+      );
+      leaves.position.set(x, 0.55, z);
+      this.scene.add(leaves);
+    };
+    addPlant(3, -4);
+    addPlant(-9, -3);
 
     // Salon
     this.makeBox(3.2, 0.75, 1.1, 0x4a6fa5, -5.5, 0, -1.5, true);
@@ -397,13 +448,42 @@ class BerliozHunt {
   }
 
   makePart(geo, color, x, y, z, group, opts = {}) {
-    const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color }));
+    const matOpts = { color };
+    if (opts.emissive) matOpts.emissive = opts.emissive;
+    const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial(matOpts));
     mesh.position.set(x, y, z);
     if (opts.rx) mesh.rotation.x = opts.rx;
     if (opts.ry) mesh.rotation.y = opts.ry;
     if (opts.rz) mesh.rotation.z = opts.rz;
+    if (opts.sx || opts.sy || opts.sz) {
+      mesh.scale.set(opts.sx || 1, opts.sy || 1, opts.sz || 1);
+    }
     group.add(mesh);
     return mesh;
+  }
+
+  addShadow(group, radius = 0.35) {
+    const shadow = new THREE.Mesh(
+      new THREE.CircleGeometry(radius, 16),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22 })
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = 0.02;
+    group.add(shadow);
+    group.userData.shadow = shadow;
+    return shadow;
+  }
+
+  findSafeSpawn(forCat = false) {
+    const candidates = [
+      { x: 2, z: 2 }, { x: -2, z: 2 }, { x: 2, z: -2 }, { x: -2, z: -2 },
+      { x: 0, z: 3 }, { x: 0, z: -3 }, { x: 4, z: 0 }, { x: -4, z: 0 },
+      { x: 0, z: 0 }, { x: 1, z: 1 }, { x: -1, z: -1 },
+    ];
+    for (const spot of candidates) {
+      if (!this.checkCollision(spot.x, spot.z, forCat)) return spot;
+    }
+    return { x: 2, z: 2 };
   }
 
   createHumanoid(type) {
@@ -433,6 +513,7 @@ class BerliozHunt {
 
     group.userData.type = type;
     group.userData.parts = { head, armL, armR, legL, legR };
+    this.addShadow(group, 0.32);
     return group;
   }
 
@@ -445,6 +526,11 @@ class BerliozHunt {
     this.makePart(new THREE.SphereGeometry(0.22, 10, 8), fur, 0, 0.22, 0.04, group);
     this.makePart(new THREE.SphereGeometry(0.16, 10, 8), belly, 0, 0.16, 0.1, group);
     this.makePart(new THREE.SphereGeometry(0.19, 10, 8), fur, 0, 0.44, 0.12, group);
+    for (let i = -1; i <= 1; i++) {
+      this.makePart(new THREE.BoxGeometry(0.04, 0.12, 0.16), stripe, i * 0.07, 0.38, 0.2, group);
+    }
+    this.makePart(new THREE.CylinderGeometry(0.008, 0.008, 0.14, 4), 0xffffff, -0.1, 0.4, 0.28, group, { rx: 0.4 });
+    this.makePart(new THREE.CylinderGeometry(0.008, 0.008, 0.14, 4), 0xffffff, 0.1, 0.4, 0.28, group, { rx: 0.4 });
 
     const earGeo = new THREE.ConeGeometry(0.07, 0.14, 5);
     this.makePart(earGeo, fur, -0.11, 0.58, 0.08, group, { rz: -0.2 });
@@ -467,6 +553,7 @@ class BerliozHunt {
 
     group.userData.tail = tail;
     group.userData.isCat = true;
+    this.addShadow(group, 0.28);
     return group;
   }
 
@@ -533,6 +620,7 @@ class BerliozHunt {
     this.joy.pointerId = null;
     this.tapStart = null;
     document.getElementById('joystick-base')?.classList.remove('joy-visible');
+    document.getElementById('prep-banner')?.classList.add('hidden');
     this.gameMode = this.selectedChar === 'berlioz' ? 'hide' : 'hunt';
     this.clearEntities();
 
@@ -557,7 +645,8 @@ class BerliozHunt {
       document.getElementById('player-name').textContent = CHARS[this.selectedChar].name;
     } else {
       this.player = this.createBerlioz();
-      this.player.position.set(0, 0, 0);
+      const spawn = this.findSafeSpawn(true);
+      this.player.position.set(spawn.x, 0, spawn.z);
       this.player.scale.set(1.35, 1.35, 1.35);
       this.scene.add(this.player);
 
@@ -573,6 +662,7 @@ class BerliozHunt {
 
       document.querySelector('.objective').textContent = `Cours te cacher ! ${HIDE_PREP_TIME}s`;
       document.getElementById('player-name').textContent = 'Berlioz 🐱';
+      document.getElementById('prep-banner').classList.remove('hidden');
     }
     } catch (err) {
       this.showError('Erreur 3D : ' + err.message);
@@ -601,18 +691,23 @@ class BerliozHunt {
   updateTimer() {
     const el = document.getElementById('timer');
     const objective = document.querySelector('.objective');
+    const prepBanner = document.getElementById('prep-banner');
     if (this.gameMode === 'hide' && this.hidePrepLeft > 0) {
       el.textContent = this.hidePrepLeft;
       el.classList.add('prep');
       el.classList.remove('urgent');
       objective.textContent = `Cours te cacher ! ${this.hidePrepLeft}s`;
+      prepBanner?.classList.remove('hidden');
       return;
     }
+    prepBanner?.classList.add('hidden');
     el.textContent = Math.ceil(this.timeLeft);
     el.classList.remove('prep');
     el.classList.toggle('urgent', this.timeLeft <= 5);
     if (this.gameMode === 'hide') {
       objective.textContent = 'Ils te cherchent… reste caché !';
+    } else {
+      objective.textContent = 'Trouve Berlioz !';
     }
   }
 
@@ -620,13 +715,22 @@ class BerliozHunt {
     return this.gameMode === 'hide' && this.player?.userData?.isCat;
   }
 
-  checkCollision(x, z) {
+  checkCollision(x, z, asCat = null) {
     if (x < WORLD_BOUNDS.minX || x > WORLD_BOUNDS.maxX || z < WORLD_BOUNDS.minZ || z > WORLD_BOUNDS.maxZ) {
       return true;
     }
-    const shrink = this.isCatPlayer() ? 0.3 : 0;
+    const isCat = asCat !== null ? asCat : this.isCatPlayer();
+    const catRadius = isCat ? 0.18 : 0.32;
     for (const c of this.colliders) {
-      if (Math.abs(x - c.x) < c.hw - shrink && Math.abs(z - c.z) < c.hd - shrink) return true;
+      const dx = Math.abs(x - c.x);
+      const dz = Math.abs(z - c.z);
+      if (isCat) {
+        const nearX = Math.max(0, dx - c.hw);
+        const nearZ = Math.max(0, dz - c.hd);
+        if (nearX * nearX + nearZ * nearZ < catRadius * catRadius) return true;
+      } else if (dx < c.hw && dz < c.hd) {
+        return true;
+      }
     }
     return false;
   }
@@ -780,6 +884,7 @@ class BerliozHunt {
 
   triggerAttack() {
     this.state = 'attack';
+    document.getElementById('prep-banner')?.classList.add('hidden');
     this.playGrowl();
     const positions = [
       [-10, -7], [10, -7], [-10, 7], [10, 7], [0, -8]
@@ -796,6 +901,16 @@ class BerliozHunt {
   lose() {
     this.state = 'lose';
     this.stopMusic();
+    document.getElementById('prep-banner')?.classList.add('hidden');
+    const loseTitle = document.querySelector('#lose-screen h1');
+    const loseText = document.querySelector('#lose-screen p');
+    if (this.gameMode === 'hide') {
+      loseTitle.textContent = 'Ils t\'ont attrapé ! 😿';
+      loseText.textContent = 'Robin et Maili ont trouvé Berlioz. Réessaie de mieux te cacher !';
+    } else {
+      loseTitle.textContent = 'Ils t\'ont eu... 💀';
+      loseText.textContent = 'Trop lent. Berlioz est toujours caché et ils ont attaqué.';
+    }
     document.getElementById('hud').classList.add('hidden');
     document.getElementById('joystick-zone').classList.add('hidden');
     document.getElementById('controls-hint').classList.add('hidden');
@@ -808,6 +923,7 @@ class BerliozHunt {
     this.state = 'menu';
     this.stopMusic();
     this.renderer.domElement.style.filter = '';
+    document.getElementById('prep-banner')?.classList.add('hidden');
     this.clearEntities();
     document.getElementById('hud').classList.add('hidden');
     document.getElementById('joystick-zone').classList.add('hidden');
@@ -1115,9 +1231,10 @@ class BerliozHunt {
 
   animateCharacters(dt) {
     const t = performance.now() * 0.001;
-    const walk = this.moveInput.x ** 2 + this.moveInput.z ** 2 > 0.04
+    const moving = this.moveInput.x ** 2 + this.moveInput.z ** 2 > 0.04
       || this.keys.up || this.keys.down || this.keys.left || this.keys.right
       || !!this.clickTarget;
+    const walk = moving;
 
     const animateHuman = (human) => {
       const parts = human.userData.parts;
@@ -1137,6 +1254,12 @@ class BerliozHunt {
     if (cat?.userData.tail) {
       const wag = walk ? 0.6 : 0.35;
       cat.userData.tail.rotation.z = Math.sin(t * (walk ? 12 : 5)) * wag;
+    }
+    if (cat?.userData.shadow) {
+      cat.userData.shadow.scale.setScalar(walk ? 1.05 : 1);
+    }
+    if (this.isCatPlayer() && this.player?.userData.shadow) {
+      this.player.userData.shadow.scale.setScalar(walk ? 1.05 : 1);
     }
   }
 }

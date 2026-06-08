@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
   <div id="game-container"></div>
@@ -17,7 +17,7 @@
   <div id="menu" class="overlay">
     <h1>Où est Berlioz ? 🐱</h1>
     <p class="subtitle">Trouve le chat dans l'appart avant qu'ils n'attaquent !</p>
-    <p class="rules">⏱️ 15 secondes · Mode Berlioz : 7s pour te cacher puis la chasse !</p>
+    <p class="rules">⏱️ 15 secondes · Mode Berlioz : 10s pour te cacher puis la chasse !</p>
 
     <h2>Choisis ton personnage</h2>
     <div class="char-select">
@@ -40,6 +40,12 @@
     <p class="hint" id="char-hint">Tu joues Robin. Trouve Berlioz en 15 secondes !</p>
     <button id="btn-start" class="btn-start">Lancer la partie</button>
     <p id="load-error" class="load-error hidden"></p>
+  </div>
+
+  <!-- Bandeau préparation mode Berlioz -->
+  <div id="prep-banner" class="hidden">
+    <span class="prep-title">🐱 Cours te cacher !</span>
+    <span class="prep-sub">Bouge avec le joystick ou ZQSD / WASD</span>
   </div>
 
   <!-- HUD -->
@@ -78,6 +84,6 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="game.js?v=7"></script>
+  <script src="game.js?v=8"></script>
 </body>
 </html>
