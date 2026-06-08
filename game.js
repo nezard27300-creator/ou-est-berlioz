@@ -218,8 +218,10 @@ class BerliozHunt {
   }
 
   initThree() {
-    this.camOffset = new THREE.Vector3(0, 3.2, 6.8);
-    this.camLookHeight = 1.15;
+    this.camDist = 10.5;
+    this.camHeight = 6.2;
+    this.camLookHeight = 0.9;
+    this.camLookAhead = 5;
     this.camLookAt = new THREE.Vector3();
     this._camTarget = new THREE.Vector3();
     this._moveDir = new THREE.Vector3();
@@ -227,11 +229,11 @@ class BerliozHunt {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xb8c9dc);
-    this.scene.fog = new THREE.Fog(0xb8c9dc, 18, 50);
+    this.scene.fog = new THREE.Fog(0xb8c9dc, 32, 75);
 
-    this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.4, 120);
-    this.camera.position.set(0, 3.2, 6.8);
-    this.camera.lookAt(0, this.camLookHeight, 0);
+    this.camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 150);
+    this.camera.position.set(0, 12, 14);
+    this.camera.lookAt(0, 0, 0);
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -239,7 +241,7 @@ class BerliozHunt {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.container.appendChild(this.renderer.domElement);
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.75);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.95);
     this.scene.add(ambient);
 
     const hemi = new THREE.HemisphereLight(0xffffff, 0xb8956a, 0.45);
@@ -458,26 +460,42 @@ class BerliozHunt {
     return mesh;
   }
 
+  tintMeshMaterial(mat, cfg, name) {
+    const m = mat.clone();
+    if (name.includes('head') || name.includes('skin') || name.includes('face')) {
+      m.color.setHex(cfg.skin);
+    } else if (name.includes('hair')) {
+      m.color.setHex(cfg.hair);
+    } else if (name.includes('pant') || name.includes('leg') || name.includes('foot') || name.includes('shoe')) {
+      m.color.setHex(0x2d3142);
+    } else {
+      m.color.setHex(cfg.color);
+    }
+    return m;
+  }
+
   tintModelMeshes(root, cfg) {
     root.traverse((child) => {
-      if (!child.isMesh) return;
+      if (!child.isMesh || !child.material) return;
       child.castShadow = true;
       child.receiveShadow = true;
       const name = (child.name || '').toLowerCase();
-      if (name.includes('head') || name.includes('skin') || name.includes('face')) {
-        child.material = child.material.clone();
-        child.material.color.setHex(cfg.skin);
-      } else if (name.includes('hair')) {
-        child.material = child.material.clone();
-        child.material.color.setHex(cfg.hair);
-      } else if (name.includes('pant') || name.includes('leg') || name.includes('foot') || name.includes('shoe')) {
-        child.material = child.material.clone();
-        child.material.color.setHex(0x2d3142);
+      if (Array.isArray(child.material)) {
+        child.material = child.material.map((mat) => this.tintMeshMaterial(mat, cfg, name));
       } else {
-        child.material = child.material.clone();
-        child.material.color.setHex(cfg.color);
+        child.material = this.tintMeshMaterial(child.material, cfg, name);
       }
     });
+  }
+
+  normalizeModel(model, cfg) {
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const targetH = 1.75;
+    const scale = (targetH / Math.max(size.y, 0.01)) * cfg.scale;
+    model.scale.setScalar(scale);
+    box.setFromObject(model);
+    model.position.y = -box.min.y;
   }
 
   setupModelAnimations(group, src) {
@@ -502,7 +520,7 @@ class BerliozHunt {
     const cfg = CHARS[type];
     const src = this.charTemplates[type];
     const model = src.scene.clone(true);
-    model.scale.setScalar(cfg.scale);
+    this.normalizeModel(model, cfg);
     this.tintModelMeshes(model, cfg);
     const group = new THREE.Group();
     group.add(model);
@@ -544,9 +562,35 @@ class BerliozHunt {
 
   createHumanoid(type) {
     if (this.modelsReady && this.charTemplates[type]) {
-      return this.createHumanoidGLTF(type);
+      try {
+        return this.createHumanoidGLTF(type);
+      } catch (err) {
+        console.warn('Perso 3D indisponible, repli simple.', err);
+      }
     }
     return this.createHumanoidFallback(type);
+  }
+
+  getPlayerYaw() {
+    return this.player?.rotation.y || 0;
+  }
+
+  getCameraPose(target, yaw, cinematic = false) {
+    const p = target;
+    if (cinematic) {
+      return {
+        pos: new THREE.Vector3(p.x, this.camHeight + 3, p.z + this.camDist * 0.7),
+        look: new THREE.Vector3(p.x, 0.5, p.z),
+      };
+    }
+    const behindX = -Math.sin(yaw) * this.camDist;
+    const behindZ = -Math.cos(yaw) * this.camDist;
+    const aheadX = p.x + Math.sin(yaw) * this.camLookAhead;
+    const aheadZ = p.z + Math.cos(yaw) * this.camLookAhead;
+    return {
+      pos: new THREE.Vector3(p.x + behindX, this.camHeight, p.z + behindZ),
+      look: new THREE.Vector3(aheadX, this.camLookHeight, aheadZ),
+    };
   }
 
   createBerlioz() {
@@ -773,26 +817,18 @@ class BerliozHunt {
 
   snapCamera() {
     if (!this.player) return;
-    const p = this.player.position;
-    this.camera.position.set(
-      p.x + this.camOffset.x,
-      p.y + this.camOffset.y,
-      p.z + this.camOffset.z
-    );
-    this.camLookAt.set(p.x, this.camLookHeight, p.z);
-    this.camera.lookAt(this.camLookAt);
+    const pose = this.getCameraPose(this.player.position, this.getPlayerYaw());
+    this.camera.position.copy(pose.pos);
+    this.camera.lookAt(pose.look);
   }
 
   updateCamera(focus = null, lerp = 0.14) {
     if (!this.player && !focus) return;
     const p = focus || this.player.position;
-    this._camTarget.set(
-      p.x + this.camOffset.x,
-      p.y + this.camOffset.y,
-      p.z + this.camOffset.z
-    );
+    const pose = this.getCameraPose(p, focus ? 0 : this.getPlayerYaw(), !!focus);
+    this._camTarget.copy(pose.pos);
     this.camera.position.lerp(this._camTarget, lerp);
-    this.camLookAt.set(p.x, focus ? 0.45 : this.camLookHeight, p.z);
+    this.camLookAt.copy(pose.look);
     this.camera.lookAt(this.camLookAt);
   }
 
@@ -933,8 +969,8 @@ class BerliozHunt {
     document.getElementById('menu').classList.remove('hidden');
     this.container.classList.remove('playing');
     if (this.camera) {
-      this.camera.position.set(0, 3.2, 6.8);
-      this.camera.lookAt(0, this.camLookHeight, 0);
+      this.camera.position.set(0, 12, 14);
+      this.camera.lookAt(0, 0, 0);
     }
   }
 
