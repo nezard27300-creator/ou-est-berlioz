@@ -35,6 +35,7 @@ class BerliozHunt {
     this.clickTarget = null;
     this.joy = { active: false, pointerId: null, originX: 0, originY: 0 };
     this.tapStart = null;
+    this.audio = { ctx: null, master: null, musicGain: null, playing: false, timer: null };
     this.colliders = [];
     this.attackers = [];
     this.npcs = [];
@@ -55,6 +56,82 @@ class BerliozHunt {
     } catch (err) {
       this.showError('Erreur au démarrage : ' + err.message);
     }
+  }
+
+  ensureAudio() {
+    if (!this.audio.ctx) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      this.audio.ctx = new Ctx();
+      this.audio.master = this.audio.ctx.createGain();
+      this.audio.master.gain.value = 0.5;
+      this.audio.master.connect(this.audio.ctx.destination);
+      this.audio.musicGain = this.audio.ctx.createGain();
+      this.audio.musicGain.gain.value = 0.14;
+      this.audio.musicGain.connect(this.audio.master);
+    }
+    if (this.audio.ctx?.state === 'suspended') {
+      this.audio.ctx.resume();
+    }
+  }
+
+  startMusic() {
+    this.ensureAudio();
+    if (!this.audio.ctx || this.audio.playing) return;
+    this.audio.playing = true;
+    const melody = [261.63, 329.63, 392, 523.25, 392, 329.63, 293.66, 329.63];
+    let i = 0;
+    const playNote = () => {
+      if (!this.audio.playing || !this.audio.ctx) return;
+      const t = this.audio.ctx.currentTime;
+      const osc = this.audio.ctx.createOscillator();
+      const g = this.audio.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = melody[i % melody.length];
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.2, t + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+      osc.connect(g);
+      g.connect(this.audio.musicGain);
+      osc.start(t);
+      osc.stop(t + 0.6);
+      i++;
+      this.audio.timer = setTimeout(playNote, 480);
+    };
+    playNote();
+  }
+
+  stopMusic() {
+    this.audio.playing = false;
+    if (this.audio.timer) {
+      clearTimeout(this.audio.timer);
+      this.audio.timer = null;
+    }
+  }
+
+  playMeow() {
+    this.ensureAudio();
+    if (!this.audio.ctx) return;
+    const t = this.audio.ctx.currentTime;
+
+    const meow = (freqStart, freqEnd, start, dur, vol) => {
+      const osc = this.audio.ctx.createOscillator();
+      const g = this.audio.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freqStart, t + start);
+      osc.frequency.exponentialRampToValueAtTime(freqEnd, t + start + dur);
+      g.gain.setValueAtTime(0, t + start);
+      g.gain.linearRampToValueAtTime(vol, t + start + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, t + start + dur);
+      osc.connect(g);
+      g.connect(this.audio.master);
+      osc.start(t + start);
+      osc.stop(t + start + dur + 0.05);
+    };
+
+    meow(700, 380, 0, 0.18, 0.25);
+    meow(620, 520, 0.14, 0.12, 0.18);
+    meow(580, 420, 0.28, 0.22, 0.22);
   }
 
   showError(msg) {
@@ -487,6 +564,8 @@ class BerliozHunt {
     this.clock.getDelta();
     this.lastTimerUpdate = performance.now();
     this.snapCamera();
+    this.ensureAudio();
+    this.startMusic();
   }
 
   updateTimer() {
@@ -532,7 +611,7 @@ class BerliozHunt {
     if (Math.abs(inputX) < 0.01 && Math.abs(inputZ) < 0.01) {
       return { x: 0, z: 0 };
     }
-    this._moveDir.set(inputX, 0, inputZ);
+    this._moveDir.set(inputX, 0, -inputZ);
     this._moveDir.normalize();
     return { x: this._moveDir.x, z: this._moveDir.z };
   }
@@ -592,14 +671,17 @@ class BerliozHunt {
 
   win(reason = 'found') {
     this.state = 'win';
+    this.stopMusic();
     const winTitle = document.querySelector('#win-screen h1');
     const winMsg = document.getElementById('win-msg');
     if (reason === 'survived') {
       winTitle.textContent = 'Berlioz a survécu ! 🐱';
       winMsg.innerHTML = 'Robin et Maili n\'ont pas trouvé le chat !';
+      this.playMeow();
     } else {
       winTitle.textContent = 'Berlioz trouvé ! 🎉';
       winMsg.innerHTML = `Tu l'as eu avec <span id="win-time">${Math.ceil(this.timeLeft)}</span>s restantes !`;
+      this.playMeow();
     }
     document.getElementById('hud').classList.add('hidden');
     document.getElementById('joystick-zone').classList.add('hidden');
@@ -624,6 +706,7 @@ class BerliozHunt {
 
   lose() {
     this.state = 'lose';
+    this.stopMusic();
     document.getElementById('hud').classList.add('hidden');
     document.getElementById('joystick-zone').classList.add('hidden');
     document.getElementById('controls-hint').classList.add('hidden');
@@ -634,6 +717,7 @@ class BerliozHunt {
 
   resetToMenu() {
     this.state = 'menu';
+    this.stopMusic();
     this.renderer.domElement.style.filter = '';
     this.clearEntities();
     document.getElementById('hud').classList.add('hidden');
@@ -680,6 +764,7 @@ class BerliozHunt {
         this.showError('Le jeu n\'est pas prêt. Recharge la page avec une connexion internet.');
         return;
       }
+      this.ensureAudio();
       this.startGame();
     });
     document.getElementById('btn-replay-win').addEventListener('click', () => this.resetToMenu());
@@ -778,7 +863,7 @@ class BerliozHunt {
       }
       stick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
       this.moveInput.x = dx / maxRadius;
-      this.moveInput.z = dy / maxRadius;
+      this.moveInput.z = -dy / maxRadius;
     };
 
     const endJoystick = (pointerId) => {
@@ -823,8 +908,8 @@ class BerliozHunt {
 
   getKeyboardInput() {
     let x = 0, z = 0;
-    if (this.keys.up) z -= 1;
-    if (this.keys.down) z += 1;
+    if (this.keys.up) z += 1;
+    if (this.keys.down) z -= 1;
     if (this.keys.left) x -= 1;
     if (this.keys.right) x += 1;
     return { x, z };
