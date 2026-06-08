@@ -182,31 +182,22 @@ class BerliozHunt {
   }
 
   initThree() {
-    this.camOffset = new THREE.Vector3(6, 9, 6);
-    this.camLookHeight = 0.6;
+    this.camOffset = new THREE.Vector3(0, 14, 10);
+    this.camLookHeight = 0;
     this.camLookAt = new THREE.Vector3();
     this._camTarget = new THREE.Vector3();
     this._moveDir = new THREE.Vector3();
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xc5d6ea);
+    this.scene.background = new THREE.Color(0x87b5de);
 
-    this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 100);
-    this.camera.position.set(6, 9, 6);
-    this.camera.lookAt(0, this.camLookHeight, 0);
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 2, 80);
+    this.camera.position.set(0, 14, 10);
+    this.camera.lookAt(0, 0, 0);
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'default' });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    this.renderer.shadowMap.enabled = false;
+    this.renderer.setPixelRatio(1);
     this.container.appendChild(this.renderer.domElement);
-
-    this.scene.add(new THREE.AmbientLight(0xffffff, 1.0));
-    const sun = new THREE.DirectionalLight(0xffffff, 0.55);
-    sun.position.set(8, 18, 6);
-    this.scene.add(sun);
-    const fill = new THREE.DirectionalLight(0xddeeff, 0.35);
-    fill.position.set(-6, 12, -4);
-    this.scene.add(fill);
 
     window.addEventListener('resize', () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -215,68 +206,25 @@ class BerliozHunt {
     });
   }
 
-  makeTexture(type) {
-    const size = 256;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-
-    if (type === 'wood') {
-      ctx.fillStyle = '#c9a66b';
-      ctx.fillRect(0, 0, size, size);
-      for (let i = 0; i < 12; i++) {
-        const y = i * 22;
-        ctx.fillStyle = i % 2 ? '#b8945f' : '#d4b07a';
-        ctx.fillRect(0, y, size, 20);
-        ctx.strokeStyle = 'rgba(0,0,0,0.06)';
-        ctx.beginPath();
-        ctx.moveTo(0, y + 10);
-        ctx.lineTo(size, y + 10);
-        ctx.stroke();
-      }
-    } else if (type === 'tile') {
-      ctx.fillStyle = '#e8e8e8';
-      ctx.fillRect(0, 0, size, size);
-      for (let x = 0; x < size; x += 32) {
-        for (let y = 0; y < size; y += 32) {
-          ctx.strokeStyle = '#cccccc';
-          ctx.strokeRect(x + 1, y + 1, 30, 30);
-          ctx.fillStyle = (x + y) % 64 === 0 ? '#f5f5f5' : '#ececec';
-          ctx.fillRect(x + 2, y + 2, 28, 28);
-        }
-      }
-    } else {
-      ctx.fillStyle = '#8b6e4e';
-      ctx.fillRect(0, 0, size, size);
-      for (let i = 0; i < 80; i++) {
-        ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.08})`;
-        ctx.fillRect(Math.random() * size, Math.random() * size, 3, 3);
-      }
-    }
-
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-    return tex;
+  floorColor(type) {
+    if (type === 'wood') return 0xc9a66b;
+    if (type === 'tile') return 0xdddddd;
+    return 0x8b6e4e;
   }
 
-  makeFloor(w, d, x, z, texType, repeatX, repeatZ) {
-    const tex = this.makeTexture(texType);
-    tex.repeat.set(repeatX, repeatZ);
-    const mat = new THREE.MeshLambertMaterial({ map: tex });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat);
+  makeFloor(w, d, x, z, texType) {
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, d),
+      new THREE.MeshBasicMaterial({ color: this.floorColor(texType) })
+    );
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(x, 0, z);
     this.scene.add(floor);
   }
 
-  makeBox(w, h, d, color, x, y, z, collider = true, matOpts = null) {
+  makeBox(w, h, d, color, x, y, z, collider = true) {
     const geo = new THREE.BoxGeometry(w, h, d);
-    const mat = matOpts
-      ? new THREE.MeshLambertMaterial(matOpts)
-      : new THREE.MeshLambertMaterial({ color });
-    const mesh = new THREE.Mesh(geo, mat);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color }));
     mesh.position.set(x, y + h / 2, z);
     this.scene.add(mesh);
     if (collider) {
@@ -296,14 +244,14 @@ class BerliozHunt {
   buildApartment() {
     const W = 22, D = 18;
 
-    this.makeFloor(W, D, 0, 0, 'wood', 10, 8);
-    this.makeFloor(10, 5, -5.5, 6, 'tile', 5, 3);
-    this.makeFloor(6, 10, 7.5, 1, 'wood', 3, 5);
-    this.makeFloor(4, 4, -8, 6.5, 'tile', 2, 2);
+    this.makeFloor(W, D, 0, 0, 'wood');
+    this.makeFloor(10, 5, -5.5, 6, 'tile');
+    this.makeFloor(6, 10, 7.5, 1, 'wood');
+    this.makeFloor(4, 4, -8, 6.5, 'tile');
 
     const rug = new THREE.Mesh(
       new THREE.PlaneGeometry(5, 4),
-      new THREE.MeshLambertMaterial({ color: 0x7a4f32 })
+      new THREE.MeshBasicMaterial({ color: 0x7a4f32 })
     );
     rug.rotation.x = -Math.PI / 2;
     rug.position.set(-1, 0.02, -0.5);
@@ -323,8 +271,7 @@ class BerliozHunt {
     const addWindow = (x, z, rotY = 0) => {
       const frame = this.makeBox(2.2, 1.4, 0.12, 0xdddddd, x, 1.4, z, false);
       frame.rotation.y = rotY;
-      const glass = this.makeBox(1.8, 1.1, 0.06, 0x88ccee, x, 1.4, z, false,
-        { color: 0xa8d8f0, transparent: true, opacity: 0.55, roughness: 0.1 });
+      const glass = this.makeBox(1.8, 1.1, 0.06, 0x88ccee, x, 1.4, z, false);
       glass.rotation.y = rotY;
     };
     addWindow(-10.8, 0, 0);
@@ -362,31 +309,10 @@ class BerliozHunt {
     this.makeBox(1.8, 0.75, 0.9, 0x5c3d2e, 8, 0, -5, true);
     this.makeBox(1.2, 0.55, 0.6, 0xffffff, 6, 0, 6, true);
 
-    // Labels pièces (sol)
-    const labels = [
-      { t: 'SALON', x: -2, z: -2 }, { t: 'CUISINE', x: -5, z: 6 },
-      { t: 'CHAMBRE', x: 7, z: 1 }, { t: 'SDB', x: -8, z: 6.5 },
-    ];
-    labels.forEach(({ x, z }) => {
-      const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.6, 0.65, 24),
-        new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.08 })
-      );
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.set(x, 0.03, z);
-      this.scene.add(ring);
-    });
-
-    const lamp = new THREE.PointLight(0xfff5e0, 0.4, 14);
-    lamp.position.set(-2, 2.5, -1);
-    this.scene.add(lamp);
-    const lamp2 = new THREE.PointLight(0xfff5e0, 0.3, 12);
-    lamp2.position.set(7, 2.5, 2);
-    this.scene.add(lamp2);
   }
 
   makePart(geo, color, x, y, z, group, opts = {}) {
-    const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color }));
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color }));
     mesh.position.set(x, y, z);
     if (opts.rx) mesh.rotation.x = opts.rx;
     if (opts.ry) mesh.rotation.y = opts.ry;
@@ -441,26 +367,18 @@ class BerliozHunt {
     this.makePart(new THREE.SphereGeometry(0.05, 6, 6), 0xffb6c8, -0.11, 0.54, 0.1, group);
     this.makePart(new THREE.SphereGeometry(0.05, 6, 6), 0xffb6c8, 0.11, 0.54, 0.1, group);
 
-    const tail = this.makePart(new THREE.CapsuleGeometry(0.035, 0.32, 4, 6), fur, 0, 0.34, -0.28, group, { rx: -1.1 });
+    const tail = this.makePart(new THREE.CylinderGeometry(0.04, 0.05, 0.35, 6), fur, 0, 0.34, -0.28, group, { rx: -1.1 });
     this.makePart(new THREE.SphereGeometry(0.045, 6, 6), 0x111111, -0.07, 0.46, 0.24, group);
     this.makePart(new THREE.SphereGeometry(0.045, 6, 6), 0x111111, 0.07, 0.46, 0.24, group);
     this.makePart(new THREE.SphereGeometry(0.025, 6, 6), 0x66ccff, -0.07, 0.46, 0.27, group);
     this.makePart(new THREE.SphereGeometry(0.025, 6, 6), 0x66ccff, 0.07, 0.46, 0.27, group);
     this.makePart(new THREE.SphereGeometry(0.03, 6, 6), 0xff8fab, 0, 0.42, 0.26, group);
 
-    const legGeo = new THREE.CapsuleGeometry(0.045, 0.12, 3, 5);
+    const legGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.12, 6);
     this.makePart(legGeo, fur, -0.1, 0.08, 0.08, group);
     this.makePart(legGeo, fur, 0.1, 0.08, 0.08, group);
     this.makePart(legGeo, fur, -0.1, 0.08, -0.06, group);
     this.makePart(legGeo, fur, 0.1, 0.08, -0.06, group);
-
-    this.makePart(new THREE.BoxGeometry(0.03, 0.12, 0.01), stripe, 0, 0.24, 0.2, group);
-    this.makePart(new THREE.BoxGeometry(0.03, 0.1, 0.01), stripe, -0.06, 0.2, 0.18, group);
-    this.makePart(new THREE.BoxGeometry(0.03, 0.1, 0.01), stripe, 0.06, 0.2, 0.18, group);
-
-    const whiskerMat = { roughness: 0.9 };
-    this.makePart(new THREE.CylinderGeometry(0.004, 0.004, 0.18, 4), 0xdddddd, -0.12, 0.43, 0.2, group, { ...whiskerMat, ry: 0.4 });
-    this.makePart(new THREE.CylinderGeometry(0.004, 0.004, 0.18, 4), 0xdddddd, 0.12, 0.43, 0.2, group, { ...whiskerMat, ry: -0.4 });
 
     group.userData.tail = tail;
     return group;
@@ -469,19 +387,12 @@ class BerliozHunt {
   createHideHint(x, z) {
     const hint = new THREE.Group();
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(0.35, 0.42, 20),
-      new THREE.MeshBasicMaterial({ color: 0xff9f43, transparent: true, opacity: 0.35 })
+      new THREE.RingGeometry(0.35, 0.42, 12),
+      new THREE.MeshBasicMaterial({ color: 0xff9f43 })
     );
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.04;
     hint.add(ring);
-    const paw = new THREE.Mesh(
-      new THREE.CircleGeometry(0.12, 12),
-      new THREE.MeshBasicMaterial({ color: 0xff9f43, transparent: true, opacity: 0.2 })
-    );
-    paw.rotation.x = -Math.PI / 2;
-    paw.position.y = 0.05;
-    hint.add(paw);
     hint.position.set(x, 0, z);
     hint.visible = false;
     this.scene.add(hint);
@@ -492,17 +403,17 @@ class BerliozHunt {
     const group = new THREE.Group();
     const body = new THREE.Mesh(
       new THREE.CylinderGeometry(0.4, 0.45, 1.3, 6),
-      new THREE.MeshLambertMaterial({ color: 0x2d2d2d })
+      new THREE.MeshBasicMaterial({ color: 0x2d2d2d })
     );
     body.position.y = 0.85;
     group.add(body);
     const head = new THREE.Mesh(
       new THREE.SphereGeometry(0.35, 6, 6),
-      new THREE.MeshLambertMaterial({ color: 0x1a1a1a })
+      new THREE.MeshBasicMaterial({ color: 0x1a1a1a })
     );
     head.position.y = 1.65;
     group.add(head);
-    const eyeMat = new THREE.MeshLambertMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.8 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), eyeMat);
     eye.position.set(0, 1.7, 0.25);
     group.add(eye);
@@ -540,6 +451,7 @@ class BerliozHunt {
 
     const spot = HIDE_SPOTS[Math.floor(Math.random() * HIDE_SPOTS.length)];
 
+    try {
     if (this.gameMode === 'hunt') {
       this.player = this.createHumanoid(this.selectedChar);
       this.player.position.set(0, 0, 0);
@@ -572,6 +484,11 @@ class BerliozHunt {
 
       document.querySelector('.objective').textContent = 'Cache-toi 15 sec !';
       document.getElementById('player-name').textContent = 'Berlioz 🐱';
+    }
+    } catch (err) {
+      this.showError('Erreur 3D : ' + err.message);
+      this.resetToMenu();
+      return;
     }
 
     document.getElementById('menu').classList.add('hidden');
@@ -648,11 +565,7 @@ class BerliozHunt {
   snapCamera() {
     if (!this.player) return;
     const p = this.player.position;
-    this.camera.position.set(
-      p.x + this.camOffset.x,
-      this.camOffset.y,
-      p.z + this.camOffset.z
-    );
+    this.camera.position.set(p.x + this.camOffset.x, this.camOffset.y, p.z + this.camOffset.z);
     this.camLookAt.set(p.x, this.camLookHeight, p.z);
     this.camera.lookAt(this.camLookAt);
   }
@@ -807,8 +720,8 @@ class BerliozHunt {
     document.getElementById('menu').classList.remove('hidden');
     this.container.classList.remove('playing');
     if (this.camera) {
-      this.camera.position.set(6, 9, 6);
-      this.camera.lookAt(0, this.camLookHeight, 0);
+      this.camera.position.set(0, 14, 10);
+      this.camera.lookAt(0, 0, 0);
     }
   }
 
