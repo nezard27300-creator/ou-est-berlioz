@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Où est Berlioz ?</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="game-container"></div>
+
+  <!-- MENU -->
+  <div id="menu" class="overlay">
+    <h1>Où est Berlioz ? 🐱</h1>
+    <p class="subtitle">Trouve le chat dans l'appart avant qu'ils n'attaquent !</p>
+    <p class="rules">⏱️ 15 secondes · 3e personne · Clavier ou écran tactile</p>
+
+    <h2>Choisis ton personnage</h2>
+    <div class="char-select">
+      <button class="char-card selected" data-char="robin">
+        <div class="char-preview robin-preview"></div>
+        <span class="char-name">Robin</span>
+        <span class="char-role">L'homme</span>
+      </button>
+      <button class="char-card" data-char="maili">
+        <div class="char-preview maili-preview"></div>
+        <span class="char-name">Maili</span>
+        <span class="char-role">La femme</span>
+      </button>
+      <button class="char-card" data-char="berlioz">
+        <div class="char-preview berlioz-preview"></div>
+        <span class="char-name">Berlioz</span>
+        <span class="char-role">Le chat</span>
+      </button>
+    </div>
+    <p class="hint" id="char-hint">Tu joues Robin. Trouve Berlioz en 15 secondes !</p>
+    <button id="btn-start" class="btn-start">Lancer la partie</button>
+    <p id="load-error" class="load-error hidden"></p>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div class="timer" id="timer">15</div>
+    <div class="hud-info">
+      <span id="player-name">Robin</span>
+      <span class="objective">Trouve Berlioz !</span>
+    </div>
+  </div>
+
+  <!-- Joystick mobile -->
+  <div id="joystick-zone" class="hidden">
+    <div id="joystick-base">
+      <div id="joystick-stick"></div>
+    </div>
+  </div>
+
+  <!-- WIN -->
+  <div id="win-screen" class="overlay hidden">
+    <h1>Berlioz trouvé ! 🎉</h1>
+    <p id="win-msg">Tu l'as eu avec <span id="win-time">0</span>s restantes !</p>
+    <button class="btn-start" id="btn-replay-win">Rejouer</button>
+  </div>
+
+  <!-- LOSE -->
+  <div id="lose-screen" class="overlay hidden">
+    <h1>Ils t'ont eu... 💀</h1>
+    <p>Trop lent. Berlioz est toujours caché et ils ont attaqué.</p>
+    <button class="btn-start" id="btn-replay-lose">Réessayer</button>
+  </div>
+
+  <div class="controls-hint hidden" id="controls-hint">
+    <kbd>ZQSD</kbd> ou <kbd>↑←↓→</kbd> pour bouger · Clic/tap au sol pour aller
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
