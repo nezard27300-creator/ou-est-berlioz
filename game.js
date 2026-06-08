@@ -1,7 +1,7 @@
 const TIME_LIMIT = 15;
-const PLAYER_SPEED = 6;
-const CATCH_DISTANCE = 1.8;
-const WORLD_BOUNDS = { minX: -5.8, maxX: 5.8, minZ: -4.8, maxZ: 4.8 };
+const PLAYER_SPEED = 8;
+const CATCH_DISTANCE = 2;
+const WORLD_BOUNDS = { minX: -10.5, maxX: 10.5, minZ: -8.5, maxZ: 8.5 };
 
 const CHARS = {
   robin: { name: 'Robin', color: 0x4a90d9, skin: 0xf4c49c, hair: 0x3d2314 },
@@ -9,14 +9,18 @@ const CHARS = {
 };
 
 const HIDE_SPOTS = [
-  { x: -3.2, z: -2.5, rot: 0.6, label: 'derrière le canapé' },
-  { x: 3.8, z: 2.2, rot: -2.2, label: 'sous le lit' },
-  { x: -4.5, z: 2.8, rot: 1.4, label: 'derrière le frigo' },
-  { x: 4.2, z: -3.0, rot: -0.5, label: 'dans l\'armoire' },
-  { x: 0.5, z: -3.8, rot: Math.PI, label: 'sous la table' },
-  { x: -1.5, z: 3.5, rot: -1.0, label: 'derrière la plante' },
-  { x: 2.5, z: -1.0, rot: 2.0, label: 'derrière le fauteuil' },
-  { x: -0.5, z: 1.5, rot: 0.3, label: 'au milieu du tapis (malin)' },
+  { x: -5.5, z: -1.5, rot: 0.6, label: 'derrière le canapé' },
+  { x: 7.5, z: 2.5, rot: -2.2, label: 'sous le lit' },
+  { x: -8.5, z: 6.0, rot: 1.4, label: 'derrière le frigo' },
+  { x: 8.5, z: 5.5, rot: -0.5, label: 'dans l\'armoire' },
+  { x: -2.0, z: -1.0, rot: Math.PI, label: 'sous la table basse' },
+  { x: 1.5, z: -2.5, rot: 2.0, label: 'derrière le fauteuil' },
+  { x: -7.0, z: 6.5, rot: 1.0, label: 'sous la baignoire' },
+  { x: 8.0, z: -5.0, rot: 0.3, label: 'sous le bureau' },
+  { x: -3.5, z: 5.5, rot: -1.0, label: 'coin cuisine' },
+  { x: 5.0, z: 6.0, rot: 0.8, label: 'derrière la commode' },
+  { x: -0.5, z: -6.5, rot: 0, label: 'derrière la TV' },
+  { x: 3.0, z: 0.5, rot: 1.5, label: 'sous le tapis' },
 ];
 
 class BerliozHunt {
@@ -60,7 +64,7 @@ class BerliozHunt {
   }
 
   initThree() {
-    this.camOffset = new THREE.Vector3(4, 6.5, 4);
+    this.camOffset = new THREE.Vector3(0, 24, 0.01);
     this.camLookAt = new THREE.Vector3();
     this._camTarget = new THREE.Vector3();
     this._camForward = new THREE.Vector3();
@@ -69,11 +73,11 @@ class BerliozHunt {
     this._moveDir = new THREE.Vector3();
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x87ceeb);
-    this.scene.fog = new THREE.Fog(0x87ceeb, 25, 55);
+    this.scene.background = new THREE.Color(0xd6e4f0);
+    this.scene.fog = new THREE.Fog(0xd6e4f0, 40, 80);
 
-    this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.5, 100);
-    this.camera.position.set(0, 8, 12);
+    this.camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 1, 120);
+    this.camera.position.set(0, 24, 0);
     this.camera.lookAt(0, 0, 0);
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -82,23 +86,27 @@ class BerliozHunt {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.container.appendChild(this.renderer.domElement);
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.85);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.75);
     this.scene.add(ambient);
 
-    const hemi = new THREE.HemisphereLight(0x87ceeb, 0xc4a882, 0.5);
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xb8956a, 0.45);
     this.scene.add(hemi);
 
-    const sun = new THREE.DirectionalLight(0xfff5e6, 1.0);
-    sun.position.set(8, 12, 6);
+    const sun = new THREE.DirectionalLight(0xfff8f0, 0.65);
+    sun.position.set(5, 30, 8);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 30;
-    sun.shadow.camera.left = -12;
-    sun.shadow.camera.right = 12;
-    sun.shadow.camera.top = 12;
-    sun.shadow.camera.bottom = -12;
+    sun.shadow.camera.far = 60;
+    sun.shadow.camera.left = -18;
+    sun.shadow.camera.right = 18;
+    sun.shadow.camera.top = 18;
+    sun.shadow.camera.bottom = -18;
     this.scene.add(sun);
+
+    const fill = new THREE.DirectionalLight(0xc8daf5, 0.25);
+    fill.position.set(-8, 20, -6);
+    this.scene.add(fill);
 
     window.addEventListener('resize', () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -107,62 +115,177 @@ class BerliozHunt {
     });
   }
 
-  makeBox(w, h, d, color, x, y, z, collider = true) {
+  makeTexture(type) {
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    if (type === 'wood') {
+      ctx.fillStyle = '#c9a66b';
+      ctx.fillRect(0, 0, size, size);
+      for (let i = 0; i < 12; i++) {
+        const y = i * 22;
+        ctx.fillStyle = i % 2 ? '#b8945f' : '#d4b07a';
+        ctx.fillRect(0, y, size, 20);
+        ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+        ctx.beginPath();
+        ctx.moveTo(0, y + 10);
+        ctx.lineTo(size, y + 10);
+        ctx.stroke();
+      }
+    } else if (type === 'tile') {
+      ctx.fillStyle = '#e8e8e8';
+      ctx.fillRect(0, 0, size, size);
+      for (let x = 0; x < size; x += 32) {
+        for (let y = 0; y < size; y += 32) {
+          ctx.strokeStyle = '#cccccc';
+          ctx.strokeRect(x + 1, y + 1, 30, 30);
+          ctx.fillStyle = (x + y) % 64 === 0 ? '#f5f5f5' : '#ececec';
+          ctx.fillRect(x + 2, y + 2, 28, 28);
+        }
+      }
+    } else {
+      ctx.fillStyle = '#8b6e4e';
+      ctx.fillRect(0, 0, size, size);
+      for (let i = 0; i < 80; i++) {
+        ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.08})`;
+        ctx.fillRect(Math.random() * size, Math.random() * size, 3, 3);
+      }
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }
+
+  makeFloor(w, d, x, z, texType, repeatX, repeatZ) {
+    const tex = this.makeTexture(texType);
+    tex.repeat.set(repeatX, repeatZ);
+    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 });
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(x, 0, z);
+    floor.receiveShadow = true;
+    this.scene.add(floor);
+  }
+
+  makeBox(w, h, d, color, x, y, z, collider = true, matOpts = null) {
     const geo = new THREE.BoxGeometry(w, h, d);
-    const mat = new THREE.MeshLambertMaterial({ color });
+    const mat = matOpts
+      ? new THREE.MeshStandardMaterial(matOpts)
+      : new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0.05 });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x, y + h / 2, z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     this.scene.add(mesh);
     if (collider) {
-      this.colliders.push({ x, z, hw: w / 2 + 0.25, hd: d / 2 + 0.25 });
+      this.colliders.push({ x, z, hw: w / 2 + 0.2, hd: d / 2 + 0.2 });
     }
     return mesh;
   }
 
+  makeWall(w, h, d, color, x, y, z) {
+    return this.makeBox(w, h, d, color, x, y, z, false);
+  }
+
+  makePartition(w, d, x, z, collider = true) {
+    this.makeBox(w, 1.1, d, 0xf0ebe3, x, 0, z, collider);
+  }
+
   buildApartment() {
-    // Sol
-    const floorGeo = new THREE.PlaneGeometry(14, 12);
-    const floorMat = new THREE.MeshLambertMaterial({ color: 0xc4a882 });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.rotation.x = -Math.PI / 2;
-    floor.receiveShadow = true;
-    this.scene.add(floor);
+    const W = 22, D = 18;
+
+    this.makeFloor(W, D, 0, 0, 'wood', 10, 8);
+    this.makeFloor(10, 5, -5.5, 6, 'tile', 5, 3);
+    this.makeFloor(6, 10, 7.5, 1, 'wood', 3, 5);
+    this.makeFloor(4, 4, -8, 6.5, 'tile', 2, 2);
 
     const rug = new THREE.Mesh(
-      new THREE.PlaneGeometry(4, 3),
-      new THREE.MeshLambertMaterial({ color: 0x8b5e3c })
+      new THREE.PlaneGeometry(5, 4),
+      new THREE.MeshStandardMaterial({ color: 0x7a4f32, roughness: 1 })
     );
     rug.rotation.x = -Math.PI / 2;
-    rug.position.set(0, 0.01, 1);
+    rug.position.set(-1, 0.02, -0.5);
     this.scene.add(rug);
 
-    // Murs
-    const wallMat = new THREE.MeshLambertMaterial({ color: 0xf5f0e8 });
-    const wallH = 3;
-    this.makeBox(14, wallH, 0.2, 0xf5f0e8, 0, 0, -5.5, false);
-    this.makeBox(14, wallH, 0.2, 0xf5f0e8, 0, 0, 5.5, false);
-    this.makeBox(0.2, wallH, 12, 0xf5f0e8, -6.5, 0, 0, false);
-    this.makeBox(0.2, wallH, 12, 0xf5f0e8, 6.5, 0, 0, false);
+    const wallH = 2.8;
+    const wallColor = 0xf5f0e8;
+    this.makeWall(W, wallH, 0.25, wallColor, 0, 0, -D / 2);
+    this.makeWall(W, wallH, 0.25, wallColor, 0, 0, D / 2);
+    this.makeWall(0.25, wallH, D, wallColor, -W / 2, 0, 0);
+    this.makeWall(0.25, wallH, D, wallColor, W / 2, 0, 0);
 
-    // Meubles
-    this.makeBox(3, 0.8, 1.2, 0x5c7cfa, -3, 0, -2, true);   // Canapé
-    this.makeBox(2.5, 0.5, 1.8, 0xffffff, 3.5, 0, 2, true);  // Lit
-    this.makeBox(1.8, 0.75, 1.0, 0x8b6914, 0, 0, -3.2, true); // Table
-    this.makeBox(0.8, 1.8, 0.8, 0xcccccc, -4.5, 0, 2.5, true); // Frigo
-    this.makeBox(1.2, 2.2, 0.6, 0x6d4c2a, 4.5, 0, -3, true);  // Armoire
-    this.makeBox(1, 0.6, 0.8, 0xe17055, 2.5, 0, -0.8, true);  // Fauteuil
-    this.makeBox(0.4, 1.2, 0.4, 0x2d6a4f, -1.5, 0, 3.2, true); // Plante
+    this.makePartition(0.25, 11, 3.5, -1.5);
+    this.makePartition(11, 0.25, -5.5, 3.5);
+    this.makePartition(6, 0.25, -8, 5.5);
 
-    // Décoration
-    const tv = this.makeBox(1.5, 0.9, 0.1, 0x222222, -3, 1.2, -4.8, false);
-    const lamp = new THREE.Mesh(
-      new THREE.SphereGeometry(0.2, 8, 8),
-      new THREE.MeshLambertMaterial({ color: 0xffeaa7, emissive: 0xffeaa7, emissiveIntensity: 0.3 })
-    );
-    lamp.position.set(0, 2.5, 0);
+    const addWindow = (x, z, rotY = 0) => {
+      const frame = this.makeBox(2.2, 1.4, 0.12, 0xdddddd, x, 1.4, z, false);
+      frame.rotation.y = rotY;
+      const glass = this.makeBox(1.8, 1.1, 0.06, 0x88ccee, x, 1.4, z, false,
+        { color: 0xa8d8f0, transparent: true, opacity: 0.55, roughness: 0.1 });
+      glass.rotation.y = rotY;
+    };
+    addWindow(-10.8, 0, 0);
+    addWindow(0, -8.8, 0);
+    addWindow(10.8, 2, 0);
+
+    // Salon
+    this.makeBox(3.2, 0.75, 1.1, 0x4a6fa5, -5.5, 0, -1.5, true);
+    this.makeBox(1.1, 0.75, 2.2, 0x4a6fa5, -6.8, 0, -2.5, true);
+    this.makeBox(2.4, 0.4, 1.2, 0x5c3d2e, -2, 0, -1, true);
+    this.makeBox(0.9, 0.55, 0.9, 0xc45c3e, 1.5, 0, -2.5, true);
+    this.makeBox(2.8, 0.55, 0.5, 0x3d2817, -5, 0, -7, true);
+    this.makeBox(1.6, 0.9, 0.15, 0x111111, -5, 0.55, -7.8, false);
+    this.makeBox(0.8, 1.6, 0.35, 0x5c3d2e, 8.5, 0, -6, true);
+    this.makeBox(0.5, 0.9, 0.5, 0x2d6a4f, -1, 0, 1.5, true);
+
+    // Cuisine
+    this.makeBox(0.85, 1.9, 0.85, 0xeeeeee, -8.5, 0, 6, true);
+    this.makeBox(4.5, 0.92, 0.65, 0xd4c4a8, -6, 0, 5.2, true);
+    this.makeBox(0.6, 0.92, 0.6, 0x888888, -4, 0.92, 5.2, false);
+    this.makeBox(1.6, 0.75, 1.6, 0x8b6914, -2.5, 0, 5.8, true);
+    this.makeBox(0.45, 0.45, 0.45, 0x6b4423, -3.2, 0, 5.2, true);
+    this.makeBox(0.45, 0.45, 0.45, 0x6b4423, -1.8, 0, 5.2, true);
+
+    // Salle de bain
+    this.makeBox(1.8, 0.55, 0.9, 0xf0f0f0, -7, 0, 6.5, true);
+    this.makeBox(0.5, 0.75, 0.5, 0xffffff, -9, 0, 5, true);
+    this.makeBox(0.7, 0.85, 0.45, 0xdddddd, -5, 0, 7.2, true);
+
+    // Chambre
+    this.makeBox(2.2, 0.55, 2.8, 0xf8f4ef, 7.5, 0, 2.5, true);
+    this.makeBox(2.4, 0.25, 0.15, 0x6d4c2a, 7.5, 0.35, 3.8, false);
+    this.makeBox(0.55, 0.45, 0.55, 0xffffff, 5.5, 0, 2.5, true);
+    this.makeBox(1.4, 2.0, 0.65, 0x6d4c2a, 8.5, 0, 5.5, true);
+    this.makeBox(1.8, 0.75, 0.9, 0x5c3d2e, 8, 0, -5, true);
+    this.makeBox(1.2, 0.55, 0.6, 0xffffff, 6, 0, 6, true);
+
+    // Labels pièces (sol)
+    const labels = [
+      { t: 'SALON', x: -2, z: -2 }, { t: 'CUISINE', x: -5, z: 6 },
+      { t: 'CHAMBRE', x: 7, z: 1 }, { t: 'SDB', x: -8, z: 6.5 },
+    ];
+    labels.forEach(({ x, z }) => {
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.6, 0.65, 24),
+        new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.08 })
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(x, 0.03, z);
+      this.scene.add(ring);
+    });
+
+    const lamp = new THREE.PointLight(0xfff5e0, 0.4, 14);
+    lamp.position.set(-2, 2.5, -1);
     this.scene.add(lamp);
+    const lamp2 = new THREE.PointLight(0xfff5e0, 0.3, 12);
+    lamp2.position.set(7, 2.5, 2);
+    this.scene.add(lamp2);
   }
 
   createHumanoid(type) {
@@ -199,6 +322,21 @@ class BerliozHunt {
     const legR = legL.clone();
     legR.position.x = 0.15;
     group.add(legL, legR);
+
+    const marker = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.42, 0.42, 0.06, 20),
+      new THREE.MeshStandardMaterial({ color: cfg.color, roughness: 0.6 })
+    );
+    marker.position.y = 0.03;
+    marker.receiveShadow = true;
+    group.add(marker);
+
+    const headTop = new THREE.Mesh(
+      new THREE.SphereGeometry(0.28, 10, 8),
+      new THREE.MeshStandardMaterial({ color: cfg.skin, roughness: 0.7 })
+    );
+    headTop.position.y = 1.5;
+    group.add(headTop);
 
     group.userData.type = type;
     return group;
@@ -246,6 +384,13 @@ class BerliozHunt {
     const eyeR = eyeL.clone();
     eyeR.position.x = 0.08;
     group.add(eyeL, eyeR);
+
+    const marker = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.3, 0.3, 0.05, 16),
+      new THREE.MeshStandardMaterial({ color: 0xff9f43, roughness: 0.5 })
+    );
+    marker.position.y = 0.025;
+    group.add(marker);
 
     return group;
   }
@@ -318,10 +463,10 @@ class BerliozHunt {
       this.scene.add(this.player);
 
       const robin = this.createHumanoid('robin');
-      robin.position.set(-2, 0, 3);
+      robin.position.set(-3, 0, -2);
       this.scene.add(robin);
       const maili = this.createHumanoid('maili');
-      maili.position.set(2, 0, 3);
+      maili.position.set(3, 0, -2);
       this.scene.add(maili);
       this.npcs = [robin, maili];
 
@@ -387,23 +532,7 @@ class BerliozHunt {
     if (Math.abs(inputX) < 0.01 && Math.abs(inputZ) < 0.01) {
       return { x: 0, z: 0 };
     }
-
-    this.camera.getWorldDirection(this._camForward);
-    this._camForward.y = 0;
-    if (this._camForward.lengthSq() < 0.001) {
-      this._camForward.set(0, 0, -1);
-    } else {
-      this._camForward.normalize();
-    }
-
-    this._walkForward.copy(this._camForward).multiplyScalar(-1);
-    this._camRight.set(-this._walkForward.z, 0, this._walkForward.x);
-
-    this._moveDir.set(0, 0, 0);
-    this._moveDir.addScaledVector(this._camRight, inputX);
-    this._moveDir.addScaledVector(this._walkForward, -inputZ);
-
-    if (this._moveDir.lengthSq() < 0.001) return { x: 0, z: 0 };
+    this._moveDir.set(inputX, 0, inputZ);
     this._moveDir.normalize();
     return { x: this._moveDir.x, z: this._moveDir.z };
   }
@@ -416,7 +545,7 @@ class BerliozHunt {
       p.y + this.camOffset.y,
       p.z + this.camOffset.z
     );
-    this.camLookAt.set(p.x, p.y + 1.2, p.z);
+    this.camLookAt.set(p.x, 0, p.z);
     this.camera.lookAt(this.camLookAt);
   }
 
@@ -428,8 +557,8 @@ class BerliozHunt {
       p.y + this.camOffset.y,
       p.z + this.camOffset.z
     );
-    this.camera.position.lerp(this._camTarget, 0.15);
-    this.camLookAt.set(p.x, p.y + 1.2, p.z);
+    this.camera.position.lerp(this._camTarget, 0.18);
+    this.camLookAt.set(p.x, 0, p.z);
     this.camera.lookAt(this.camLookAt);
   }
 
@@ -482,7 +611,7 @@ class BerliozHunt {
   triggerAttack() {
     this.state = 'attack';
     const positions = [
-      [-6, -4], [6, -4], [-6, 4], [6, 4], [0, -5]
+      [-10, -7], [10, -7], [-10, 7], [10, 7], [0, -8]
     ];
     positions.forEach(([x, z]) => {
       const a = this.createAttacker(x, z);
@@ -515,7 +644,7 @@ class BerliozHunt {
     document.getElementById('menu').classList.remove('hidden');
     this.container.classList.remove('playing');
     if (this.camera) {
-      this.camera.position.set(0, 8, 12);
+      this.camera.position.set(0, 24, 0);
       this.camera.lookAt(0, 0, 0);
     }
   }
