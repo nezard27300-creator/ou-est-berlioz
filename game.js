@@ -129,9 +129,49 @@ class BerliozHunt {
       osc.stop(t + start + dur + 0.05);
     };
 
-    meow(700, 380, 0, 0.18, 0.25);
-    meow(620, 520, 0.14, 0.12, 0.18);
-    meow(580, 420, 0.28, 0.22, 0.22);
+    meow(800, 450, 0, 0.12, 0.2);
+    meow(650, 520, 0.1, 0.15, 0.28);
+    meow(720, 400, 0.22, 0.28, 0.25);
+  }
+
+  playGrowl() {
+    this.ensureAudio();
+    if (!this.audio.ctx) return;
+    const t = this.audio.ctx.currentTime;
+    const len = this.audio.ctx.sampleRate * 0.9;
+    const buffer = this.audio.ctx.createBuffer(1, len, this.audio.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (len * 0.35));
+    }
+    const noise = this.audio.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = this.audio.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(180, t);
+    filter.frequency.exponentialRampToValueAtTime(60, t + 0.7);
+    const g = this.audio.ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.45, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.85);
+    noise.connect(filter);
+    filter.connect(g);
+    g.connect(this.audio.master);
+    noise.start(t);
+    noise.stop(t + 0.9);
+
+    const osc = this.audio.ctx.createOscillator();
+    const og = this.audio.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(95, t);
+    osc.frequency.exponentialRampToValueAtTime(42, t + 0.6);
+    og.gain.setValueAtTime(0, t);
+    og.gain.linearRampToValueAtTime(0.3, t + 0.08);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.75);
+    osc.connect(og);
+    og.connect(this.audio.master);
+    osc.start(t);
+    osc.stop(t + 0.8);
   }
 
   showError(msg) {
@@ -681,7 +721,8 @@ class BerliozHunt {
     } else {
       winTitle.textContent = 'Berlioz trouvé ! 🎉';
       winMsg.innerHTML = `Tu l'as eu avec <span id="win-time">${Math.ceil(this.timeLeft)}</span>s restantes !`;
-      this.playMeow();
+      this.playGrowl();
+      setTimeout(() => this.playMeow(), 450);
     }
     document.getElementById('hud').classList.add('hidden');
     document.getElementById('joystick-zone').classList.add('hidden');
@@ -692,6 +733,7 @@ class BerliozHunt {
 
   triggerAttack() {
     this.state = 'attack';
+    this.playGrowl();
     const positions = [
       [-10, -7], [10, -7], [-10, 7], [10, 7], [0, -8]
     ];
