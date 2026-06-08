@@ -181,29 +181,65 @@ class BerliozHunt {
     el.classList.remove('hidden');
   }
 
+  getViewSize() {
+    return {
+      w: window.innerWidth || document.documentElement.clientWidth || 800,
+      h: window.innerHeight || document.documentElement.clientHeight || 600,
+    };
+  }
+
   initThree() {
-    this.camOffset = new THREE.Vector3(0, 14, 10);
+    this.camOffset = new THREE.Vector3(9, 18, 9);
     this.camLookHeight = 0;
+    this.orthoZoom = 11;
     this.camLookAt = new THREE.Vector3();
     this._camTarget = new THREE.Vector3();
     this._moveDir = new THREE.Vector3();
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x87b5de);
+    this.scene.background = new THREE.Color(0x6ba3d6);
 
-    this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 2, 80);
-    this.camera.position.set(0, 14, 10);
-    this.camera.lookAt(0, 0, 0);
-    this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'default' });
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(1);
+    const { w, h } = this.getViewSize();
+    const aspect = w / h;
+    this.camera = new THREE.OrthographicCamera(
+      -this.orthoZoom * aspect,
+      this.orthoZoom * aspect,
+      this.orthoZoom,
+      -this.orthoZoom,
+      0.5,
+      200
+    );
+    this.setCameraView(0, 0);
+
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false });
+    this.renderer.setSize(w, h);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.domElement.style.width = '100%';
+    this.renderer.domElement.style.height = '100%';
     this.container.appendChild(this.renderer.domElement);
 
-    window.addEventListener('resize', () => {
-      this.camera.aspect = window.innerWidth / window.innerHeight;
-      this.camera.updateProjectionMatrix();
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    window.addEventListener('resize', () => this.onResize());
+  }
+
+  onResize() {
+    const { w, h } = this.getViewSize();
+    const aspect = w / h;
+    this.camera.left = -this.orthoZoom * aspect;
+    this.camera.right = this.orthoZoom * aspect;
+    this.camera.top = this.orthoZoom;
+    this.camera.bottom = -this.orthoZoom;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(w, h);
+  }
+
+  setCameraView(targetX, targetZ) {
+    this.camera.position.set(
+      targetX + this.camOffset.x,
+      this.camOffset.y,
+      targetZ + this.camOffset.z
+    );
+    this.camLookAt.set(targetX, this.camLookHeight, targetZ);
+    this.camera.lookAt(this.camLookAt);
   }
 
   floorColor(type) {
@@ -503,6 +539,7 @@ class BerliozHunt {
     this.clock.start();
     this.clock.getDelta();
     this.lastTimerUpdate = performance.now();
+    this.onResize();
     this.snapCamera();
     this.ensureAudio();
     this.startMusic();
@@ -564,23 +601,13 @@ class BerliozHunt {
 
   snapCamera() {
     if (!this.player) return;
-    const p = this.player.position;
-    this.camera.position.set(p.x + this.camOffset.x, this.camOffset.y, p.z + this.camOffset.z);
-    this.camLookAt.set(p.x, this.camLookHeight, p.z);
-    this.camera.lookAt(this.camLookAt);
+    this.setCameraView(this.player.position.x, this.player.position.z);
   }
 
-  updateCamera(focus = null, lerp = 0.12) {
+  updateCamera(focus = null) {
     if (!this.player && !focus) return;
     const p = focus || this.player.position;
-    this._camTarget.set(
-      p.x + this.camOffset.x,
-      focus ? this.camOffset.y + 2 : this.camOffset.y,
-      p.z + this.camOffset.z
-    );
-    this.camera.position.lerp(this._camTarget, lerp);
-    this.camLookAt.set(p.x, focus ? 0.4 : this.camLookHeight, p.z);
-    this.camera.lookAt(this.camLookAt);
+    this.setCameraView(p.x, p.z);
   }
 
   updateProximityHint() {
@@ -720,8 +747,7 @@ class BerliozHunt {
     document.getElementById('menu').classList.remove('hidden');
     this.container.classList.remove('playing');
     if (this.camera) {
-      this.camera.position.set(0, 14, 10);
-      this.camera.lookAt(0, 0, 0);
+      this.setCameraView(0, 0);
     }
   }
 
@@ -993,7 +1019,7 @@ class BerliozHunt {
       if (this.berlioz.userData.tail) {
         this.berlioz.userData.tail.rotation.z = Math.sin(t * 12) * 0.5;
       }
-      this.updateCamera(this.berlioz.position, 0.08);
+      this.updateCamera(this.berlioz.position);
       if (t >= this.reveal.duration) {
         this.finishRevealWin();
       }
