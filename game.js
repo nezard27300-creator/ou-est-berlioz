@@ -29,6 +29,8 @@ class BerliozHunt {
     this.keys = {};
     this.moveInput = { x: 0, z: 0 };
     this.clickTarget = null;
+    this.joy = { active: false, pointerId: null, originX: 0, originY: 0 };
+    this.tapStart = null;
     this.colliders = [];
     this.attackers = [];
     this.npcs = [];
@@ -285,6 +287,12 @@ class BerliozHunt {
     this.state = 'playing';
     this.timeLeft = TIME_LIMIT;
     this.clickTarget = null;
+    this.moveInput.x = 0;
+    this.moveInput.z = 0;
+    this.joy.active = false;
+    this.joy.pointerId = null;
+    this.tapStart = null;
+    document.getElementById('joystick-base')?.classList.remove('joy-visible');
     this.gameMode = this.selectedChar === 'berlioz' ? 'hide' : 'hunt';
     this.clearEntities();
 
@@ -564,13 +572,17 @@ class BerliozHunt {
       if (k) this.keys[k] = false;
     });
 
-    // Clic / tap pour se déplacer
+    this.setupTapToMove();
+    this.setupJoystick();
+  }
+
+  setupTapToMove() {
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
-    const onPointer = (clientX, clientY) => {
-      if (this.state !== 'playing') return;
+    const goToPoint = (clientX, clientY) => {
+      if (this.state !== 'playing' || this.joy.active) return;
       mouse.x = (clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(clientY / window.innerHeight) * 2 + 1;
       raycaster.setFromCamera(mouse, this.camera);
@@ -582,56 +594,100 @@ class BerliozHunt {
       }
     };
 
-    this.renderer.domElement.addEventListener('click', (e) => onPointer(e.clientX, e.clientY));
-    this.renderer.domElement.addEventListener('touchstart', (e) => {
-      if (e.target.closest('#joystick-zone')) return;
-      const t = e.touches[0];
-      onPointer(t.clientX, t.clientY);
-    }, { passive: true });
+    const canvas = this.renderer.domElement;
 
-    // Joystick tactile
+    canvas.addEventListener('click', (e) => {
+      if (window.innerWidth < 768 || window.matchMedia('(pointer: coarse)').matches) return;
+      goToPoint(e.clientX, e.clientY);
+    });
+
+    canvas.addEventListener('pointerdown', (e) => {
+      if (this.state !== 'playing') return;
+      if (e.clientX < window.innerWidth * 0.5) return;
+      this.tapStart = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    });
+
+    canvas.addEventListener('pointerup', (e) => {
+      if (!this.tapStart || e.pointerId !== this.tapStart.id) return;
+      const dx = e.clientX - this.tapStart.x;
+      const dy = e.clientY - this.tapStart.y;
+      if (Math.hypot(dx, dy) < 18) {
+        goToPoint(e.clientX, e.clientY);
+      }
+      this.tapStart = null;
+    });
+
+    canvas.addEventListener('pointercancel', () => {
+      this.tapStart = null;
+    });
+  }
+
+  setupJoystick() {
     const zone = document.getElementById('joystick-zone');
     const base = document.getElementById('joystick-base');
     const stick = document.getElementById('joystick-stick');
-    let joyActive = false;
-    let joyOrigin = { x: 0, y: 0 };
-    const maxRadius = 35;
+    const maxRadius = 52;
+    const baseRadius = 65;
 
-    const handleJoy = (cx, cy) => {
-      let dx = cx - joyOrigin.x;
-      let dy = cy - joyOrigin.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+    const showJoystick = (x, y) => {
+      base.classList.add('joy-visible');
+      base.style.left = `${x - baseRadius}px`;
+      base.style.top = `${y - baseRadius}px`;
+      this.joy.originX = x;
+      this.joy.originY = y;
+    };
+
+    const updateJoystick = (x, y) => {
+      let dx = x - this.joy.originX;
+      let dy = y - this.joy.originY;
+      const dist = Math.hypot(dx, dy);
       if (dist > maxRadius) {
         dx = (dx / dist) * maxRadius;
         dy = (dy / dist) * maxRadius;
       }
       stick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
       this.moveInput.x = dx / maxRadius;
-      this.moveInput.z = -dy / maxRadius;
+      this.moveInput.z = dy / maxRadius;
     };
 
-    const endJoy = () => {
-      joyActive = false;
+    const endJoystick = (pointerId) => {
+      if (pointerId !== undefined && this.joy.pointerId !== pointerId) return;
+      this.joy.active = false;
+      this.joy.pointerId = null;
+      base.classList.remove('joy-visible');
       stick.style.transform = 'translate(-50%, -50%)';
       this.moveInput.x = 0;
       this.moveInput.z = 0;
+      if (pointerId != null) {
+        try { zone.releasePointerCapture(pointerId); } catch (_) {}
+      }
     };
 
-    base.addEventListener('touchstart', (e) => {
+    zone.addEventListener('pointerdown', (e) => {
+      if (this.state !== 'playing') return;
       e.preventDefault();
-      joyActive = true;
-      const rect = base.getBoundingClientRect();
-      joyOrigin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-      handleJoy(e.touches[0].clientX, e.touches[0].clientY);
-    }, { passive: false });
+      this.joy.active = true;
+      this.joy.pointerId = e.pointerId;
+      this.clickTarget = null;
+      this.tapStart = null;
+      zone.setPointerCapture(e.pointerId);
+      showJoystick(e.clientX, e.clientY);
+      updateJoystick(e.clientX, e.clientY);
+    });
 
-    window.addEventListener('touchmove', (e) => {
-      if (!joyActive) return;
+    zone.addEventListener('pointermove', (e) => {
+      if (!this.joy.active || e.pointerId !== this.joy.pointerId) return;
       e.preventDefault();
-      handleJoy(e.touches[0].clientX, e.touches[0].clientY);
-    }, { passive: false });
+      updateJoystick(e.clientX, e.clientY);
+    });
 
-    window.addEventListener('touchend', endJoy);
+    zone.addEventListener('pointerup', (e) => {
+      endJoystick(e.pointerId);
+    });
+
+    zone.addEventListener('pointercancel', (e) => {
+      endJoystick(e.pointerId);
+    });
   }
 
   getKeyboardInput() {
@@ -667,7 +723,7 @@ class BerliozHunt {
       const kb = this.getKeyboardInput();
       const joyLen = Math.sqrt(this.moveInput.x ** 2 + this.moveInput.z ** 2);
 
-      if (joyLen > 0.15) {
+      if (joyLen > 0.08) {
         dx = this.moveInput.x;
         dz = this.moveInput.z;
         cameraRelative = true;

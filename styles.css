@@ -283,33 +283,52 @@ body {
   color: #6bcb77;
 }
 
-/* Joystick */
+/* Joystick tactile */
 #joystick-zone {
   position: fixed;
-  bottom: 30px;
-  left: 30px;
+  left: 0;
+  bottom: 0;
+  width: 50%;
+  height: 65%;
   z-index: 50;
+  touch-action: none;
+  pointer-events: auto;
 }
 
 #joystick-base {
-  width: 120px;
-  height: 120px;
-  background: rgba(255,255,255,0.15);
-  border: 2px solid rgba(255,255,255,0.3);
+  width: 130px;
+  height: 130px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 2px solid rgba(255, 255, 255, 0.35);
   border-radius: 50%;
-  position: relative;
+  position: fixed;
+  display: none;
+  pointer-events: none;
+}
+
+#joystick-base.joy-visible {
+  display: block;
 }
 
 #joystick-stick {
-  width: 50px;
-  height: 50px;
-  background: rgba(107, 203, 119, 0.8);
+  width: 54px;
+  height: 54px;
+  background: rgba(107, 203, 119, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.5);
   border-radius: 50%;
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  pointer-events: none;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+.hint-desktop { display: inline; }
+.hint-mobile { display: none; }
+
+@media (max-width: 768px), (pointer: coarse) {
+  .hint-desktop { display: none; }
+  .hint-mobile { display: inline; }
 }
 
 .controls-hint {
