@@ -1,7 +1,7 @@
 const TIME_LIMIT = 15;
 const PLAYER_SPEED = 6;
 const CATCH_DISTANCE = 1.8;
-const WORLD_BOUNDS = { minX: -5.5, maxX: 5.5, minZ: -4.5, maxZ: 4.5 };
+const WORLD_BOUNDS = { minX: -5.8, maxX: 5.8, minZ: -4.8, maxZ: 4.8 };
 
 const CHARS = {
   robin: { name: 'Robin', color: 0x4a90d9, skin: 0xf4c49c, hair: 0x3d2314 },
@@ -58,9 +58,12 @@ class BerliozHunt {
   }
 
   initThree() {
-    this.camOffset = new THREE.Vector3(0, 4.5, 7);
+    this.camOffset = new THREE.Vector3(4, 6.5, 4);
     this.camLookAt = new THREE.Vector3();
     this._camTarget = new THREE.Vector3();
+    this._camForward = new THREE.Vector3();
+    this._camRight = new THREE.Vector3();
+    this._moveDir = new THREE.Vector3();
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x87ceeb);
@@ -110,7 +113,7 @@ class BerliozHunt {
     mesh.receiveShadow = true;
     this.scene.add(mesh);
     if (collider) {
-      this.colliders.push({ x, z, hw: w / 2 + 0.35, hd: d / 2 + 0.35 });
+      this.colliders.push({ x, z, hw: w / 2 + 0.25, hd: d / 2 + 0.25 });
     }
     return mesh;
   }
@@ -289,7 +292,7 @@ class BerliozHunt {
 
     if (this.gameMode === 'hunt') {
       this.player = this.createHumanoid(this.selectedChar);
-      this.player.position.set(0, 0, 4);
+      this.player.position.set(0, 0, 0);
       this.scene.add(this.player);
 
       this.berlioz = this.createBerlioz();
@@ -371,22 +374,28 @@ class BerliozHunt {
     this.player.rotation.y = Math.atan2(dx, dz);
   }
 
-  getCameraAngle() {
-    return Math.atan2(
-      this.camera.position.x - this.player.position.x,
-      this.camera.position.z - this.player.position.z
-    );
-  }
+  getMovementFromInput(inputX, inputZ) {
+    if (Math.abs(inputX) < 0.01 && Math.abs(inputZ) < 0.01) {
+      return { x: 0, z: 0 };
+    }
 
-  toWorldDirection(dx, dz) {
-    if (Math.abs(dx) < 0.01 && Math.abs(dz) < 0.01) return { x: 0, z: 0 };
-    const angle = this.getCameraAngle();
-    const cos = Math.cos(angle);
-    const sin = Math.sin(angle);
-    return {
-      x: dx * cos - dz * sin,
-      z: dx * sin + dz * cos,
-    };
+    this.camera.getWorldDirection(this._camForward);
+    this._camForward.y = 0;
+    if (this._camForward.lengthSq() < 0.001) {
+      this._camForward.set(0, 0, -1);
+    } else {
+      this._camForward.normalize();
+    }
+
+    this._camRight.set(-this._camForward.z, 0, this._camForward.x);
+
+    this._moveDir.set(0, 0, 0);
+    this._moveDir.addScaledVector(this._camRight, inputX);
+    this._moveDir.addScaledVector(this._camForward, -inputZ);
+
+    if (this._moveDir.lengthSq() < 0.001) return { x: 0, z: 0 };
+    this._moveDir.normalize();
+    return { x: this._moveDir.x, z: this._moveDir.z };
   }
 
   snapCamera() {
@@ -542,7 +551,8 @@ class BerliozHunt {
     const keyMap = {
       ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
       z: 'up', q: 'left', s: 'down', d: 'right',
-      w: 'up', a: 'left',
+      w: 'up', a: 'left', Z: 'up', Q: 'left', S: 'down', D: 'right',
+      W: 'up', A: 'left',
     };
 
     window.addEventListener('keydown', (e) => {
@@ -685,7 +695,7 @@ class BerliozHunt {
       let moveX = dx;
       let moveZ = dz;
       if (cameraRelative) {
-        const world = this.toWorldDirection(dx, dz);
+        const world = this.getMovementFromInput(dx, dz);
         moveX = world.x;
         moveZ = world.z;
       }
