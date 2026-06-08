@@ -1,11 +1,19 @@
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
 const TIME_LIMIT = 15;
 const PLAYER_SPEED = 8;
 const CATCH_DISTANCE = 2;
 const WORLD_BOUNDS = { minX: -10.5, maxX: 10.5, minZ: -8.5, maxZ: 8.5 };
 
 const CHARS = {
-  robin: { name: 'Robin', color: 0x4a90d9, skin: 0xf4c49c, hair: 0x3d2314 },
-  maili: { name: 'Maili', color: 0xc77dff, skin: 0xf4c49c, hair: 0x5c3317 },
+  robin: { name: 'Robin', color: 0x4a90d9, skin: 0xf4c49c, hair: 0x3d2314, scale: 0.95 },
+  maili: { name: 'Maili', color: 0xc77dff, skin: 0xf4c49c, hair: 0x5c3317, scale: 0.82 },
+};
+
+const MODEL_URLS = {
+  robin: 'https://threejs.org/examples/models/gltf/Soldier.glb',
+  maili: 'https://threejs.org/examples/models/gltf/Xbot.glb',
 };
 
 const HIDE_SPOTS = [
@@ -36,29 +44,56 @@ class BerliozHunt {
     this.joy = { active: false, pointerId: null, originX: 0, originY: 0 };
     this.tapStart = null;
     this.reveal = { active: false, time: 0, duration: 2.8 };
-    this._isoForward = new THREE.Vector3();
-    this._isoRight = new THREE.Vector3();
+    this._screenForward = new THREE.Vector3();
+    this._screenRight = new THREE.Vector3();
     this.audio = { ctx: null, master: null, musicGain: null, playing: false, timer: null };
     this.colliders = [];
     this.attackers = [];
     this.npcs = [];
+    this.mixers = [];
+    this.charTemplates = {};
+    this.modelsReady = false;
+    this.loadingModels = false;
 
     this.container = document.getElementById('game-container');
     this.setupUI();
-
-    if (typeof THREE === 'undefined') {
-      this.showError('Three.js n\'a pas chargé. Vérifie ta connexion internet et recharge la page.');
-      return;
-    }
 
     try {
       this.initThree();
       this.buildApartment();
       this.setupInput();
+      this.loadCharacterModels();
       this.animate();
     } catch (err) {
       this.showError('Erreur au démarrage : ' + err.message);
     }
+  }
+
+  async loadCharacterModels() {
+    const btn = document.getElementById('btn-start');
+    const hint = document.getElementById('char-hint');
+    this.loadingModels = true;
+    btn.disabled = true;
+    btn.textContent = 'Chargement des persos…';
+    const loader = new GLTFLoader();
+    try {
+      const entries = await Promise.all(
+        Object.entries(MODEL_URLS).map(async ([key, url]) => {
+          const gltf = await loader.loadAsync(url);
+          return [key, gltf];
+        })
+      );
+      entries.forEach(([key, gltf]) => { this.charTemplates[key] = gltf; });
+      this.modelsReady = true;
+      hint.textContent = 'Personnages 3D chargés ! Choisis et lance la partie.';
+    } catch (err) {
+      console.warn('Modèles 3D indisponibles, repli graphique.', err);
+      this.modelsReady = false;
+      hint.textContent = 'Mode graphique simplifié — tu peux quand même jouer.';
+    }
+    this.loadingModels = false;
+    btn.textContent = 'Lancer la partie';
+    if (this.selectedChar) btn.disabled = false;
   }
 
   ensureAudio() {
@@ -184,21 +219,20 @@ class BerliozHunt {
   }
 
   initThree() {
-    this.camOffset = new THREE.Vector3(9, 15, 9);
+    this.camOffset = new THREE.Vector3(0, 3.2, 6.8);
+    this.camLookHeight = 1.15;
     this.camLookAt = new THREE.Vector3();
     this._camTarget = new THREE.Vector3();
-    this._camFocus = new THREE.Vector3();
     this._moveDir = new THREE.Vector3();
     this._up = new THREE.Vector3(0, 1, 0);
-    this.updateIsoBasis();
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xd6e4f0);
-    this.scene.fog = new THREE.Fog(0xd6e4f0, 28, 65);
+    this.scene.background = new THREE.Color(0xb8c9dc);
+    this.scene.fog = new THREE.Fog(0xb8c9dc, 18, 50);
 
-    this.camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.5, 120);
-    this.camera.position.set(9, 15, 9);
-    this.camera.lookAt(0, 0, 0);
+    this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.4, 120);
+    this.camera.position.set(0, 3.2, 6.8);
+    this.camera.lookAt(0, this.camLookHeight, 0);
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -425,43 +459,95 @@ class BerliozHunt {
     return mesh;
   }
 
-  createHumanoid(type) {
+  tintModelMeshes(root, cfg) {
+    root.traverse((child) => {
+      if (!child.isMesh) return;
+      child.castShadow = true;
+      child.receiveShadow = true;
+      const name = (child.name || '').toLowerCase();
+      if (name.includes('head') || name.includes('skin') || name.includes('face')) {
+        child.material = child.material.clone();
+        child.material.color.setHex(cfg.skin);
+      } else if (name.includes('hair')) {
+        child.material = child.material.clone();
+        child.material.color.setHex(cfg.hair);
+      } else if (name.includes('pant') || name.includes('leg') || name.includes('foot') || name.includes('shoe')) {
+        child.material = child.material.clone();
+        child.material.color.setHex(0x2d3142);
+      } else {
+        child.material = child.material.clone();
+        child.material.color.setHex(cfg.color);
+      }
+    });
+  }
+
+  setupModelAnimations(group, src) {
+    const mixer = new THREE.AnimationMixer(group);
+    const clips = src.animations || [];
+    const idleClip = THREE.AnimationClip.findByName(clips, 'Idle') || clips[0];
+    const walkClip = THREE.AnimationClip.findByName(clips, 'Walk')
+      || THREE.AnimationClip.findByName(clips, 'Run')
+      || clips[1]
+      || idleClip;
+    const idleAction = mixer.clipAction(idleClip);
+    const walkAction = mixer.clipAction(walkClip);
+    idleAction.play();
+    group.userData.gltf = true;
+    group.userData.mixer = mixer;
+    group.userData.idleAction = idleAction;
+    group.userData.walkAction = walkAction;
+    this.mixers.push(mixer);
+  }
+
+  createHumanoidGLTF(type) {
+    const cfg = CHARS[type];
+    const src = this.charTemplates[type];
+    const model = src.scene.clone(true);
+    model.scale.setScalar(cfg.scale);
+    this.tintModelMeshes(model, cfg);
+    const group = new THREE.Group();
+    group.add(model);
+    group.userData.type = type;
+    group.userData.model = model;
+    this.setupModelAnimations(model, src);
+    return group;
+  }
+
+  createHumanoidFallback(type) {
     const cfg = CHARS[type];
     const group = new THREE.Group();
     const isMaili = type === 'maili';
 
-    this.makePart(new THREE.BoxGeometry(0.42, 0.28, 0.24), 0x2a2a2a, 0, 0.14, 0, group);
-    this.makePart(new THREE.BoxGeometry(0.38, 0.42, 0.22), cfg.color, 0, 0.5, 0, group);
-    this.makePart(new THREE.BoxGeometry(0.44, 0.18, 0.26), cfg.color, 0, 0.84, 0, group);
-
-    const skinMat = { roughness: 0.72 };
-    const head = this.makePart(new THREE.SphereGeometry(0.26, 12, 10), cfg.skin, 0, 1.18, 0.02, group, skinMat);
-    this.makePart(new THREE.SphereGeometry(0.1, 8, 8), 0x111111, -0.09, 1.2, 0.2, group);
-    this.makePart(new THREE.SphereGeometry(0.1, 8, 8), 0x111111, 0.09, 1.2, 0.2, group);
-    this.makePart(new THREE.SphereGeometry(0.04, 6, 6), cfg.skin, 0, 1.1, 0.24, group, skinMat);
-
+    this.makePart(new THREE.BoxGeometry(0.5, 0.3, 0.28), 0x1a1a1a, 0, 0.15, 0, group);
+    this.makePart(new THREE.BoxGeometry(0.46, 0.5, 0.28), cfg.color, 0, 0.55, 0, group);
+    this.makePart(new THREE.BoxGeometry(0.52, 0.22, 0.32), cfg.color, 0, 0.92, 0, group);
+    const head = this.makePart(new THREE.BoxGeometry(0.28, 0.3, 0.26), cfg.skin, 0, 1.22, 0.04, group);
+    this.makePart(new THREE.BoxGeometry(0.3, 0.1, 0.28), cfg.hair, 0, 1.38, 0, group);
+    this.makePart(new THREE.BoxGeometry(0.08, 0.06, 0.04), 0x111111, -0.08, 1.24, 0.18, group);
+    this.makePart(new THREE.BoxGeometry(0.08, 0.06, 0.04), 0x111111, 0.08, 1.24, 0.18, group);
     if (isMaili) {
-      this.makePart(new THREE.SphereGeometry(0.28, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), cfg.hair, 0, 1.28, -0.02, group);
-      this.makePart(new THREE.BoxGeometry(0.34, 0.22, 0.18), cfg.color, 0, 0.72, -0.08, group);
-    } else {
-      this.makePart(new THREE.BoxGeometry(0.3, 0.1, 0.28), cfg.hair, 0, 1.34, -0.02, group);
-      this.makePart(new THREE.BoxGeometry(0.34, 0.2, 0.18), cfg.color, 0, 0.72, -0.06, group);
+      this.makePart(new THREE.BoxGeometry(0.36, 0.28, 0.2), cfg.color, 0, 0.78, -0.1, group);
     }
 
-    const armGeo = new THREE.CapsuleGeometry(0.07, 0.34, 4, 6);
-    const legGeo = new THREE.CapsuleGeometry(0.09, 0.38, 4, 6);
-    const shoeGeo = new THREE.BoxGeometry(0.14, 0.08, 0.22);
-
-    const armL = this.makePart(armGeo, cfg.skin, -0.28, 0.72, 0, group, { rx: 0.15, rz: 0.2 });
-    const armR = this.makePart(armGeo, cfg.skin, 0.28, 0.72, 0, group, { rx: 0.15, rz: -0.2 });
-    const legL = this.makePart(legGeo, 0x2d3142, -0.12, 0.28, 0.02, group);
-    const legR = this.makePart(legGeo, 0x2d3142, 0.12, 0.28, 0.02, group);
-    this.makePart(shoeGeo, 0x1a1a1a, -0.12, 0.04, 0.06, group);
-    this.makePart(shoeGeo, 0x1a1a1a, 0.12, 0.04, 0.06, group);
+    const armGeo = new THREE.BoxGeometry(0.14, 0.42, 0.14);
+    const legGeo = new THREE.BoxGeometry(0.16, 0.46, 0.16);
+    const armL = this.makePart(armGeo, cfg.color, -0.34, 0.72, 0, group);
+    const armR = this.makePart(armGeo, cfg.color, 0.34, 0.72, 0, group);
+    const legL = this.makePart(legGeo, 0x2d3142, -0.14, 0.28, 0.02, group);
+    const legR = this.makePart(legGeo, 0x2d3142, 0.14, 0.28, 0.02, group);
+    this.makePart(new THREE.BoxGeometry(0.18, 0.1, 0.28), 0xeeeeee, -0.14, 0.05, 0.08, group);
+    this.makePart(new THREE.BoxGeometry(0.18, 0.1, 0.28), 0xeeeeee, 0.14, 0.05, 0.08, group);
 
     group.userData.type = type;
     group.userData.parts = { head, armL, armR, legL, legR };
     return group;
+  }
+
+  createHumanoid(type) {
+    if (this.modelsReady && this.charTemplates[type]) {
+      return this.createHumanoidGLTF(type);
+    }
+    return this.createHumanoidFallback(type);
   }
 
   createBerlioz() {
@@ -558,6 +644,8 @@ class BerliozHunt {
     this.npcs = [];
     this.attackers.forEach(a => this.scene.remove(a));
     this.attackers = [];
+    this.mixers.forEach(m => m.stopAllAction());
+    this.mixers = [];
     this.reveal.active = false;
     this.reveal.time = 0;
   }
@@ -669,18 +757,25 @@ class BerliozHunt {
     this.player.rotation.y = Math.atan2(dx, dz);
   }
 
-  updateIsoBasis() {
-    this._isoForward.set(-this.camOffset.x, 0, -this.camOffset.z).normalize();
-    this._isoRight.crossVectors(this._up, this._isoForward).normalize();
+  updateScreenMovementBasis() {
+    this.camera.getWorldDirection(this._screenForward);
+    this._screenForward.y = 0;
+    if (this._screenForward.lengthSq() < 1e-6) {
+      this._screenForward.set(0, 0, -1);
+    } else {
+      this._screenForward.normalize();
+    }
+    this._screenRight.crossVectors(this._screenForward, this._up).normalize();
   }
 
   getMovementFromInput(inputX, inputZ) {
     if (Math.abs(inputX) < 0.01 && Math.abs(inputZ) < 0.01) {
       return { x: 0, z: 0 };
     }
+    this.updateScreenMovementBasis();
     this._moveDir.set(0, 0, 0);
-    this._moveDir.addScaledVector(this._isoRight, inputX);
-    this._moveDir.addScaledVector(this._isoForward, inputZ);
+    this._moveDir.addScaledVector(this._screenRight, inputX);
+    this._moveDir.addScaledVector(this._screenForward, inputZ);
     this._moveDir.normalize();
     return { x: this._moveDir.x, z: this._moveDir.z };
   }
@@ -693,11 +788,11 @@ class BerliozHunt {
       p.y + this.camOffset.y,
       p.z + this.camOffset.z
     );
-    this.camLookAt.set(p.x, 0, p.z);
+    this.camLookAt.set(p.x, this.camLookHeight, p.z);
     this.camera.lookAt(this.camLookAt);
   }
 
-  updateCamera(focus = null, lerp = 0.18) {
+  updateCamera(focus = null, lerp = 0.14) {
     if (!this.player && !focus) return;
     const p = focus || this.player.position;
     this._camTarget.set(
@@ -706,7 +801,7 @@ class BerliozHunt {
       p.z + this.camOffset.z
     );
     this.camera.position.lerp(this._camTarget, lerp);
-    this.camLookAt.set(p.x, focus ? 0.35 : 0, p.z);
+    this.camLookAt.set(p.x, focus ? 0.45 : this.camLookHeight, p.z);
     this.camera.lookAt(this.camLookAt);
   }
 
@@ -847,8 +942,8 @@ class BerliozHunt {
     document.getElementById('menu').classList.remove('hidden');
     this.container.classList.remove('playing');
     if (this.camera) {
-      this.camera.position.set(9, 15, 9);
-      this.camera.lookAt(0, 0, 0);
+      this.camera.position.set(0, 3.2, 6.8);
+      this.camera.lookAt(0, this.camLookHeight, 0);
     }
   }
 
@@ -865,7 +960,7 @@ class BerliozHunt {
     } else {
       hint.textContent = `Tu joues ${CHARS[char].name}. Trouve Berlioz en 15 secondes !`;
     }
-    btnStart.disabled = false;
+    if (!this.loadingModels) btnStart.disabled = false;
   }
 
   setupUI() {
@@ -1046,9 +1141,25 @@ class BerliozHunt {
     return { x, z };
   }
 
+  setCharacterAnim(human, walking) {
+    if (!human?.userData.gltf) return;
+    const { idleAction, walkAction } = human.userData;
+    if (walking) {
+      if (!walkAction.isRunning()) {
+        idleAction.fadeOut(0.12);
+        walkAction.reset().fadeIn(0.12).play();
+      }
+      walkAction.timeScale = 1.15;
+    } else if (walkAction.isRunning()) {
+      walkAction.fadeOut(0.12);
+      idleAction.reset().fadeIn(0.12).play();
+    }
+  }
+
   animate() {
     requestAnimationFrame(() => this.animate());
     const dt = Math.min(this.clock.getDelta(), 0.05);
+    this.mixers.forEach(m => m.update(dt));
 
     if (this.state === 'playing') {
       const now = performance.now();
@@ -1150,6 +1261,11 @@ class BerliozHunt {
       || !!this.clickTarget;
 
     const animateHuman = (human) => {
+      const animTarget = human.userData.model || human;
+      if (animTarget.userData.gltf) {
+        this.setCharacterAnim(animTarget, walk);
+        return;
+      }
       const parts = human.userData.parts;
       if (!parts) return;
       const swing = walk ? Math.sin(t * 10) * 0.35 : 0;
@@ -1157,7 +1273,7 @@ class BerliozHunt {
       parts.armR.rotation.x = -swing;
       parts.legL.rotation.x = -swing * 0.7;
       parts.legR.rotation.x = swing * 0.7;
-      parts.head.position.y = 1.18 + (walk ? Math.abs(Math.sin(t * 10)) * 0.03 : 0);
+      parts.head.position.y = 1.22 + (walk ? Math.abs(Math.sin(t * 10)) * 0.03 : 0);
     };
 
     if (this.player?.userData.type) animateHuman(this.player);
