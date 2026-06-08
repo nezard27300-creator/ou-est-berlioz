@@ -64,6 +64,7 @@ class BerliozHunt {
     this.camLookAt = new THREE.Vector3();
     this._camTarget = new THREE.Vector3();
     this._camForward = new THREE.Vector3();
+    this._walkForward = new THREE.Vector3();
     this._camRight = new THREE.Vector3();
     this._moveDir = new THREE.Vector3();
 
@@ -395,11 +396,12 @@ class BerliozHunt {
       this._camForward.normalize();
     }
 
-    this._camRight.set(-this._camForward.z, 0, this._camForward.x);
+    this._walkForward.copy(this._camForward).multiplyScalar(-1);
+    this._camRight.set(-this._walkForward.z, 0, this._walkForward.x);
 
     this._moveDir.set(0, 0, 0);
     this._moveDir.addScaledVector(this._camRight, inputX);
-    this._moveDir.addScaledVector(this._camForward, -inputZ);
+    this._moveDir.addScaledVector(this._walkForward, -inputZ);
 
     if (this._moveDir.lengthSq() < 0.001) return { x: 0, z: 0 };
     this._moveDir.normalize();
