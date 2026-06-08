@@ -44,8 +44,7 @@ class BerliozHunt {
     this.joy = { active: false, pointerId: null, originX: 0, originY: 0 };
     this.tapStart = null;
     this.reveal = { active: false, time: 0, duration: 2.8 };
-    this._screenForward = new THREE.Vector3();
-    this._screenRight = new THREE.Vector3();
+    this._inputDir = new THREE.Vector3();
     this.audio = { ctx: null, master: null, musicGain: null, playing: false, timer: null };
     this.colliders = [];
     this.attackers = [];
@@ -757,25 +756,17 @@ class BerliozHunt {
     this.player.rotation.y = Math.atan2(dx, dz);
   }
 
-  updateScreenMovementBasis() {
-    this.camera.getWorldDirection(this._screenForward);
-    this._screenForward.y = 0;
-    if (this._screenForward.lengthSq() < 1e-6) {
-      this._screenForward.set(0, 0, -1);
-    } else {
-      this._screenForward.normalize();
-    }
-    this._screenRight.crossVectors(this._screenForward, this._up).normalize();
-  }
-
   getMovementFromInput(inputX, inputZ) {
     if (Math.abs(inputX) < 0.01 && Math.abs(inputZ) < 0.01) {
       return { x: 0, z: 0 };
     }
-    this.updateScreenMovementBasis();
-    this._moveDir.set(0, 0, 0);
-    this._moveDir.addScaledVector(this._screenRight, inputX);
-    this._moveDir.addScaledVector(this._screenForward, inputZ);
+    this.camera.updateMatrixWorld();
+    this._inputDir.set(inputX, 0, -inputZ);
+    this._inputDir.applyQuaternion(this.camera.quaternion);
+    this._moveDir.set(this._inputDir.x, 0, this._inputDir.z);
+    if (this._moveDir.lengthSq() < 1e-6) {
+      return { x: 0, z: 0 };
+    }
     this._moveDir.normalize();
     return { x: this._moveDir.x, z: this._moveDir.z };
   }
@@ -1076,15 +1067,12 @@ class BerliozHunt {
         dy = (dy / dist) * maxRadius;
       }
       stick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-      const nx = dx / maxRadius;
-      const ny = -dy / maxRadius;
-      const len = Math.hypot(nx, ny);
+      this.moveInput.x = dx / maxRadius;
+      this.moveInput.z = -(dy / maxRadius);
+      const len = Math.hypot(this.moveInput.x, this.moveInput.z);
       if (len > 1) {
-        this.moveInput.x = nx / len;
-        this.moveInput.z = ny / len;
-      } else {
-        this.moveInput.x = nx;
-        this.moveInput.z = ny;
+        this.moveInput.x /= len;
+        this.moveInput.z /= len;
       }
     };
 
