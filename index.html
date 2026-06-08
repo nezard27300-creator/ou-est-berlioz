@@ -16,7 +16,7 @@
   <div id="menu" class="overlay">
     <h1>Où est Berlioz ? 🐱</h1>
     <p class="subtitle">Trouve le chat dans l'appart avant qu'ils n'attaquent !</p>
-    <p class="rules">⏱️ 15 secondes · Vue style GTA · Grand appart · Clavier ou tactile</p>
+    <p class="rules">⏱️ 15 secondes · Vue 3D claire · Grand appart · Clavier ou tactile</p>
 
     <h2>Choisis ton personnage</h2>
     <div class="char-select">
@@ -76,14 +76,7 @@
     <span class="hint-mobile">Joystick : droite = droite, gauche = gauche · Berlioz apparaît quand tu le trouves 🔊</span>
   </div>
 
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-    }
-  }
-  </script>
-  <script type="module" src="game.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="game.js"></script>
 </body>
 </html>
