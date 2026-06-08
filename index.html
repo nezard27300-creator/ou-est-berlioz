@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=9">
+  <link rel="stylesheet" href="styles.css?v=10">
 </head>
 <body>
   <div id="game-container"></div>
@@ -17,7 +17,7 @@
   <div id="menu" class="overlay">
     <h1>Où est Berlioz ? 🐱</h1>
     <p class="subtitle">Trouve le chat dans l'appart avant qu'ils n'attaquent !</p>
-    <p class="rules">⏱️ 15 secondes · Mode Berlioz : 10s pour te cacher puis la chasse !</p>
+    <p class="rules">⏱️ 30 secondes · Plusieurs cachettes · Mode Berlioz : 10s pour te cacher !</p>
 
     <h2>Choisis ton personnage</h2>
     <div class="char-select">
@@ -37,7 +37,7 @@
         <span class="char-role">Le chat</span>
       </button>
     </div>
-    <p class="hint" id="char-hint">Tu joues Robin. Trouve Berlioz en 15 secondes !</p>
+    <p class="hint" id="char-hint">Tu joues Robin. Trouve Berlioz en 30 secondes !</p>
     <button id="btn-start" class="btn-start">Lancer la partie</button>
     <p id="load-error" class="load-error hidden"></p>
   </div>
@@ -50,7 +50,7 @@
 
   <!-- HUD -->
   <div id="hud" class="hidden">
-    <div class="timer" id="timer">15</div>
+    <div class="timer" id="timer">30</div>
     <div class="hud-info">
       <span id="player-name">Robin</span>
       <span class="objective">Trouve Berlioz !</span>
@@ -80,10 +80,10 @@
 
   <div class="controls-hint hidden" id="controls-hint">
     <span class="hint-desktop"><kbd>ZQSD</kbd> / <kbd>WASD</kbd> ou flèches · Clic au sol pour aller</span>
-    <span class="hint-mobile">Joystick : droite = droite, gauche = gauche · Berlioz apparaît quand tu le trouves 🔊</span>
+    <span class="hint-mobile">Joystick à droite · Explore les cachettes 🐾 · Berlioz apparaît quand tu le trouves 🔊</span>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="game.js?v=9"></script>
+  <script src="game.js?v=10"></script>
 </body>
 </html>

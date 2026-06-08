@@ -1,4 +1,5 @@
-const TIME_LIMIT = 15;
+const TIME_LIMIT = 30;
+const DECOY_CACHES = 4;
 const HIDE_PREP_TIME = 10;
 const PLAYER_SPEED = 8;
 const CAT_SPEED = 12;
@@ -30,6 +31,15 @@ const HIDE_SPOTS = [
   { x: 5.0, z: 6.0, rot: 0.8, label: 'derrière la commode' },
   { x: -0.5, z: -6.5, rot: 0, label: 'derrière la TV' },
   { x: 3.0, z: 0.5, rot: 1.5, label: 'sous le tapis' },
+  { x: -9.0, z: 4.5, rot: 0.9, label: 'près du lavabo' },
+  { x: 6.5, z: -3.0, rot: -1.2, label: 'derrière la plante' },
+  { x: -4.5, z: -5.5, rot: 2.4, label: 'coin du salon' },
+  { x: 4.5, z: 4.0, rot: -0.8, label: 'sous la commode' },
+  { x: -1.5, z: 6.0, rot: 1.8, label: 'derrière les chaises' },
+  { x: 9.0, z: -2.0, rot: 0.5, label: 'coin du bureau' },
+  { x: -6.5, z: -3.5, rot: -2.0, label: 'derrière le canapé (coin)' },
+  { x: 2.5, z: 5.8, rot: 1.1, label: 'sous l\'étagère' },
+  { x: -8.0, z: -2.0, rot: 0.2, label: 'près de la fenêtre' },
 ];
 
 class BerliozHunt {
@@ -89,26 +99,66 @@ class BerliozHunt {
     this.ensureAudio();
     if (!this.audio.ctx || this.audio.playing) return;
     this.audio.playing = true;
-    const melody = [261.63, 329.63, 392, 523.25, 392, 329.63, 293.66, 329.63];
-    let i = 0;
-    const playNote = () => {
+    this.audio.musicGain.gain.value = 0.2;
+    this.audio.musicStep = 0;
+
+    const melody = [
+      { f: 392, d: 0.1 }, { f: 523.25, d: 0.1 }, { f: 659.25, d: 0.1 }, { f: 784, d: 0.14 },
+      { f: 440, d: 0.1 }, { f: 554.37, d: 0.1 }, { f: 698.46, d: 0.1 }, { f: 880, d: 0.14 },
+      { f: 349.23, d: 0.1 }, { f: 440, d: 0.1 }, { f: 523.25, d: 0.1 }, { f: 659.25, d: 0.14 },
+      { f: 392, d: 0.1 }, { f: 493.88, d: 0.1 }, { f: 587.33, d: 0.1 }, { f: 392, d: 0.18 },
+    ];
+    const bass = [98, 98, 110, 110, 87.31, 87.31, 98, 73.42];
+
+    const playStep = () => {
       if (!this.audio.playing || !this.audio.ctx) return;
       const t = this.audio.ctx.currentTime;
-      const osc = this.audio.ctx.createOscillator();
-      const g = this.audio.ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.value = melody[i % melody.length];
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.2, t + 0.04);
-      g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
-      osc.connect(g);
-      g.connect(this.audio.musicGain);
-      osc.start(t);
-      osc.stop(t + 0.6);
-      i++;
-      this.audio.timer = setTimeout(playNote, 480);
+      const step = this.audio.musicStep++;
+      const note = melody[step % melody.length];
+
+      const lead = this.audio.ctx.createOscillator();
+      const lg = this.audio.ctx.createGain();
+      lead.type = 'square';
+      lead.frequency.value = note.f;
+      lg.gain.setValueAtTime(0, t);
+      lg.gain.linearRampToValueAtTime(0.1, t + 0.015);
+      lg.gain.exponentialRampToValueAtTime(0.001, t + note.d);
+      lead.connect(lg);
+      lg.connect(this.audio.musicGain);
+      lead.start(t);
+      lead.stop(t + note.d + 0.02);
+
+      if (step % 2 === 0) {
+        const bosc = this.audio.ctx.createOscillator();
+        const bg = this.audio.ctx.createGain();
+        bosc.type = 'triangle';
+        bosc.frequency.value = bass[(step / 2) % bass.length];
+        bg.gain.setValueAtTime(0, t);
+        bg.gain.linearRampToValueAtTime(0.16, t + 0.02);
+        bg.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        bosc.connect(bg);
+        bg.connect(this.audio.musicGain);
+        bosc.start(t);
+        bosc.stop(t + 0.22);
+      }
+
+      if (step % 4 === 0) {
+        const kick = this.audio.ctx.createOscillator();
+        const kg = this.audio.ctx.createGain();
+        kick.type = 'sine';
+        kick.frequency.setValueAtTime(160, t);
+        kick.frequency.exponentialRampToValueAtTime(45, t + 0.09);
+        kg.gain.setValueAtTime(0.22, t);
+        kg.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+        kick.connect(kg);
+        kg.connect(this.audio.musicGain);
+        kick.start(t);
+        kick.stop(t + 0.12);
+      }
+
+      this.audio.timer = setTimeout(playStep, 135);
     };
-    playNote();
+    playStep();
   }
 
   stopMusic() {
@@ -564,19 +614,44 @@ class BerliozHunt {
     return group;
   }
 
-  createHideHint(x, z) {
+  createHideHint(x, z, isReal = true) {
     const hint = new THREE.Group();
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(0.35, 0.42, 12),
-      new THREE.MeshBasicMaterial({ color: 0xff9f43 })
+      new THREE.RingGeometry(isReal ? 0.35 : 0.3, isReal ? 0.42 : 0.36, 12),
+      new THREE.MeshBasicMaterial({
+        color: isReal ? 0xff9f43 : 0xffb347,
+        transparent: !isReal,
+        opacity: isReal ? 1 : 0.45,
+      })
     );
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.04;
     hint.add(ring);
+
+    const paw = new THREE.Mesh(
+      new THREE.CircleGeometry(0.1, 8),
+      new THREE.MeshBasicMaterial({
+        color: 0xff9f43,
+        transparent: !isReal,
+        opacity: isReal ? 0.9 : 0.35,
+      })
+    );
+    paw.rotation.x = -Math.PI / 2;
+    paw.position.y = 0.045;
+    hint.add(paw);
+
     hint.position.set(x, 0, z);
-    hint.visible = false;
+    hint.visible = !isReal;
+    hint.userData.isReal = isReal;
     this.scene.add(hint);
     return hint;
+  }
+
+  pickHideRound() {
+    const shuffled = [...HIDE_SPOTS].sort(() => Math.random() - 0.5);
+    const real = shuffled[0];
+    const decoys = shuffled.slice(1, 1 + DECOY_CACHES);
+    return { real, decoys };
   }
 
   createAttacker(x, z) {
@@ -606,6 +681,10 @@ class BerliozHunt {
     if (this.player) { this.scene.remove(this.player); this.player = null; }
     if (this.berlioz) { this.scene.remove(this.berlioz); this.berlioz = null; }
     if (this.hideHint) { this.scene.remove(this.hideHint); this.hideHint = null; }
+    if (this.hideHints) {
+      this.hideHints.forEach(h => this.scene.remove(h));
+      this.hideHints = [];
+    }
     this.npcs.forEach(n => this.scene.remove(n));
     this.npcs = [];
     this.attackers.forEach(a => this.scene.remove(a));
@@ -631,7 +710,7 @@ class BerliozHunt {
     this.gameMode = this.selectedChar === 'berlioz' ? 'hide' : 'hunt';
     this.clearEntities();
 
-    const spot = HIDE_SPOTS[Math.floor(Math.random() * HIDE_SPOTS.length)];
+    const { real: spot, decoys } = this.pickHideRound();
 
     try {
     if (this.gameMode === 'hunt') {
@@ -645,10 +724,11 @@ class BerliozHunt {
       this.berlioz.visible = false;
       this.berlioz.scale.set(1, 1, 1);
       this.scene.add(this.berlioz);
-      this.hideHint = this.createHideHint(spot.x, spot.z);
+      this.hideHint = this.createHideHint(spot.x, spot.z, true);
+      this.hideHints = decoys.map((d) => this.createHideHint(d.x, d.z, false));
       this.hideSpotLabel = spot.label;
 
-      document.querySelector('.objective').textContent = 'Trouve Berlioz !';
+      document.querySelector('.objective').textContent = 'Explore les cachettes !';
       document.getElementById('player-name').textContent = CHARS[this.selectedChar].name;
     } else {
       this.player = this.createBerlioz();
@@ -711,7 +791,7 @@ class BerliozHunt {
     prepBanner?.classList.add('hidden');
     el.textContent = Math.ceil(this.timeLeft);
     el.classList.remove('prep');
-    el.classList.toggle('urgent', this.timeLeft <= 5);
+    el.classList.toggle('urgent', this.timeLeft <= 10);
     if (this.gameMode === 'hide') {
       objective.textContent = 'Ils te cherchent… reste caché !';
     } else {
@@ -796,20 +876,37 @@ class BerliozHunt {
     if (this.gameMode !== 'hunt' || !this.player || !this.berlioz || this.reveal.active) return;
     const dist = this.player.position.distanceTo(this.berlioz.position);
     const objective = document.querySelector('.objective');
+    const t = performance.now() * 0.001;
+
+    if (this.hideHints) {
+      this.hideHints.forEach((hint, i) => {
+        const d = this.player.position.distanceTo(hint.position);
+        const near = d < 4.5;
+        hint.visible = true;
+        hint.rotation.y += 0.012;
+        const pulse = 0.85 + Math.sin(t * 2 + i) * 0.08;
+        hint.scale.set(pulse, pulse, pulse);
+        hint.children.forEach((c) => {
+          c.material.opacity = near ? 0.7 : 0.35;
+        });
+      });
+    }
+
     if (this.hideHint) {
-      this.hideHint.visible = dist < 5.5;
+      this.hideHint.visible = dist < 6;
       if (this.hideHint.visible) {
-        this.hideHint.rotation.y += 0.02;
-        const pulse = 0.9 + Math.sin(performance.now() * 0.006) * 0.1;
+        this.hideHint.rotation.y += 0.025;
+        const pulse = 0.9 + Math.sin(t * 5) * 0.12;
         this.hideHint.scale.set(pulse, pulse, pulse);
       }
     }
+
     if (dist < 4) {
       objective.textContent = 'Tu le sens proche… 🐾';
-    } else if (dist < 7) {
+    } else if (dist < 8) {
       objective.textContent = 'Berlioz est dans le coin…';
     } else {
-      objective.textContent = 'Trouve Berlioz !';
+      objective.textContent = 'Explore les cachettes !';
     }
   }
 
@@ -822,6 +919,7 @@ class BerliozHunt {
     this.moveInput.z = 0;
     this.clickTarget = null;
     if (this.hideHint) this.hideHint.visible = false;
+    if (this.hideHints) this.hideHints.forEach(h => { h.visible = false; });
 
     this.berlioz.visible = true;
     this.berlioz.position.y = 0.15;
@@ -1069,9 +1167,9 @@ class BerliozHunt {
     this.selectedChar = char;
 
     if (char === 'berlioz') {
-      hint.textContent = `🐱 Mode Berlioz : ${HIDE_PREP_TIME}s pour te cacher, puis 15s de chasse !`;
+      hint.textContent = `🐱 Mode Berlioz : ${HIDE_PREP_TIME}s pour te cacher, puis ${TIME_LIMIT}s de chasse !`;
     } else {
-      hint.textContent = `Tu joues ${CHARS[char].name}. Trouve Berlioz en 15 secondes !`;
+      hint.textContent = `Tu joues ${CHARS[char].name}. Trouve Berlioz en ${TIME_LIMIT} secondes !`;
     }
     btnStart.disabled = false;
   }
@@ -1146,7 +1244,7 @@ class BerliozHunt {
 
     canvas.addEventListener('pointerdown', (e) => {
       if (this.state !== 'playing') return;
-      if (e.clientX < window.innerWidth * 0.5) return;
+      if (e.clientX > window.innerWidth * 0.5) return;
       this.tapStart = { x: e.clientX, y: e.clientY, id: e.pointerId };
     });
 

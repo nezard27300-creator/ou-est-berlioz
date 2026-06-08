@@ -327,7 +327,8 @@ body {
 /* Joystick tactile */
 #joystick-zone {
   position: fixed;
-  left: 0;
+  right: 0;
+  left: auto;
   bottom: 0;
   width: 50%;
   height: 65%;
