@@ -58,11 +58,17 @@ class BerliozHunt {
   }
 
   initThree() {
+    this.camOffset = new THREE.Vector3(0, 4.5, 7);
+    this.camLookAt = new THREE.Vector3();
+    this._camTarget = new THREE.Vector3();
+
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x87ceeb);
-    this.scene.fog = new THREE.Fog(0x87ceeb, 15, 35);
+    this.scene.fog = new THREE.Fog(0x87ceeb, 25, 55);
 
-    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100);
+    this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.5, 100);
+    this.camera.position.set(0, 8, 12);
+    this.camera.lookAt(0, 0, 0);
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -70,10 +76,13 @@ class BerliozHunt {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.container.appendChild(this.renderer.domElement);
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.85);
     this.scene.add(ambient);
 
-    const sun = new THREE.DirectionalLight(0xfff5e6, 0.9);
+    const hemi = new THREE.HemisphereLight(0x87ceeb, 0xc4a882, 0.5);
+    this.scene.add(hemi);
+
+    const sun = new THREE.DirectionalLight(0xfff5e6, 1.0);
     sun.position.set(8, 12, 6);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
@@ -318,7 +327,9 @@ class BerliozHunt {
     this.updateTimer();
 
     this.clock.start();
+    this.clock.getDelta();
     this.lastTimerUpdate = performance.now();
+    this.snapCamera();
   }
 
   updateTimer() {
@@ -360,17 +371,47 @@ class BerliozHunt {
     this.player.rotation.y = Math.atan2(dx, dz);
   }
 
+  getCameraAngle() {
+    return Math.atan2(
+      this.camera.position.x - this.player.position.x,
+      this.camera.position.z - this.player.position.z
+    );
+  }
+
+  toWorldDirection(dx, dz) {
+    if (Math.abs(dx) < 0.01 && Math.abs(dz) < 0.01) return { x: 0, z: 0 };
+    const angle = this.getCameraAngle();
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    return {
+      x: dx * cos - dz * sin,
+      z: dx * sin + dz * cos,
+    };
+  }
+
+  snapCamera() {
+    if (!this.player) return;
+    const p = this.player.position;
+    this.camera.position.set(
+      p.x + this.camOffset.x,
+      p.y + this.camOffset.y,
+      p.z + this.camOffset.z
+    );
+    this.camLookAt.set(p.x, p.y + 1.2, p.z);
+    this.camera.lookAt(this.camLookAt);
+  }
+
   updateCamera() {
     if (!this.player) return;
-    const offset = new THREE.Vector3(0, 5, 7);
-    offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.rotation.y);
-    const target = this.player.position.clone().add(offset);
-    this.camera.position.lerp(target, 0.08);
-    this.camera.lookAt(
-      this.player.position.x,
-      this.player.position.y + 1,
-      this.player.position.z
+    const p = this.player.position;
+    this._camTarget.set(
+      p.x + this.camOffset.x,
+      p.y + this.camOffset.y,
+      p.z + this.camOffset.z
     );
+    this.camera.position.lerp(this._camTarget, 0.15);
+    this.camLookAt.set(p.x, p.y + 1.2, p.z);
+    this.camera.lookAt(this.camLookAt);
   }
 
   checkWin() {
@@ -455,7 +496,7 @@ class BerliozHunt {
     document.getElementById('menu').classList.remove('hidden');
     this.container.classList.remove('playing');
     if (this.camera) {
-      this.camera.position.set(0, 10, 10);
+      this.camera.position.set(0, 8, 12);
       this.camera.lookAt(0, 0, 0);
     }
   }
@@ -612,30 +653,45 @@ class BerliozHunt {
       }
 
       let dx = 0, dz = 0;
+      let cameraRelative = false;
       const kb = this.getKeyboardInput();
       const joyLen = Math.sqrt(this.moveInput.x ** 2 + this.moveInput.z ** 2);
 
       if (joyLen > 0.15) {
         dx = this.moveInput.x;
         dz = this.moveInput.z;
+        cameraRelative = true;
         this.clickTarget = null;
       } else if (kb.x !== 0 || kb.z !== 0) {
         dx = kb.x;
         dz = kb.z;
+        cameraRelative = true;
         this.clickTarget = null;
-      } else if (this.clickTarget) {
+      } else if (this.clickTarget && this.player) {
         const px = this.player.position.x;
         const pz = this.player.position.z;
         dx = this.clickTarget.x - px;
         dz = this.clickTarget.z - pz;
-        if (Math.sqrt(dx * dx + dz * dz) < 0.3) {
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < 0.3) {
           this.clickTarget = null;
           dx = 0; dz = 0;
+        } else {
+          dx /= dist;
+          dz /= dist;
         }
       }
 
+      let moveX = dx;
+      let moveZ = dz;
+      if (cameraRelative) {
+        const world = this.toWorldDirection(dx, dz);
+        moveX = world.x;
+        moveZ = world.z;
+      }
+
       const speedMul = this.gameMode === 'hide' ? 1.3 : 1;
-      this.movePlayer(dx * speedMul, dz * speedMul, dt);
+      this.movePlayer(moveX * speedMul, moveZ * speedMul, dt);
       this.updateCamera();
       this.checkWin();
       this.checkHideMode(dt);
