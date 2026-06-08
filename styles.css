@@ -256,6 +256,11 @@ body {
   transition: color 0.3s;
 }
 
+.timer.prep {
+  color: #6bcb77;
+  animation: pulse 0.8s infinite;
+}
+
 .timer.urgent {
   color: #ff6b6b;
   animation: pulse 0.5s infinite;

@@ -1,5 +1,7 @@
 const TIME_LIMIT = 15;
+const HIDE_PREP_TIME = 7;
 const PLAYER_SPEED = 8;
+const CAT_SPEED = 11;
 const CATCH_DISTANCE = 2;
 const WORLD_BOUNDS = { minX: -10.5, maxX: 10.5, minZ: -8.5, maxZ: 8.5 };
 
@@ -197,7 +199,15 @@ class BerliozHunt {
     this._moveDir = new THREE.Vector3();
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x6ba3d6);
+    this.scene.background = new THREE.Color(0x7eb8e8);
+
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+    const sun = new THREE.DirectionalLight(0xfff8ee, 0.55);
+    sun.position.set(10, 20, 8);
+    this.scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xc8e0ff, 0.35);
+    fill.position.set(-8, 14, -6);
+    this.scene.add(fill);
 
     const { w, h } = this.getViewSize();
     const aspect = w / h;
@@ -211,7 +221,7 @@ class BerliozHunt {
     );
     this.setCameraView(0, 0);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setSize(w, h);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.domElement.style.width = '100%';
@@ -242,16 +252,42 @@ class BerliozHunt {
     this.camera.lookAt(this.camLookAt);
   }
 
-  floorColor(type) {
-    if (type === 'wood') return 0xc9a66b;
-    if (type === 'tile') return 0xdddddd;
-    return 0x8b6e4e;
+  makeTexture(type) {
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (type === 'wood') {
+      ctx.fillStyle = '#c9a66b';
+      ctx.fillRect(0, 0, size, size);
+      for (let i = 0; i < 8; i++) {
+        ctx.fillStyle = i % 2 ? '#b8945f' : '#d4b07a';
+        ctx.fillRect(0, i * 16, size, 14);
+      }
+    } else {
+      ctx.fillStyle = '#e4e4e4';
+      ctx.fillRect(0, 0, size, size);
+      for (let x = 0; x < size; x += 16) {
+        for (let y = 0; y < size; y += 16) {
+          ctx.strokeStyle = '#cccccc';
+          ctx.strokeRect(x + 1, y + 1, 14, 14);
+        }
+      }
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.magFilter = THREE.NearestFilter;
+    return tex;
   }
 
-  makeFloor(w, d, x, z, texType) {
+  makeFloor(w, d, x, z, texType, repX = 4, repZ = 4) {
+    const tex = this.makeTexture(texType);
+    tex.repeat.set(repX, repZ);
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(w, d),
-      new THREE.MeshBasicMaterial({ color: this.floorColor(texType) })
+      new THREE.MeshLambertMaterial({ map: tex })
     );
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(x, 0, z);
@@ -260,7 +296,7 @@ class BerliozHunt {
 
   makeBox(w, h, d, color, x, y, z, collider = true) {
     const geo = new THREE.BoxGeometry(w, h, d);
-    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color }));
+    const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color }));
     mesh.position.set(x, y + h / 2, z);
     this.scene.add(mesh);
     if (collider) {
@@ -280,14 +316,14 @@ class BerliozHunt {
   buildApartment() {
     const W = 22, D = 18;
 
-    this.makeFloor(W, D, 0, 0, 'wood');
-    this.makeFloor(10, 5, -5.5, 6, 'tile');
-    this.makeFloor(6, 10, 7.5, 1, 'wood');
-    this.makeFloor(4, 4, -8, 6.5, 'tile');
+    this.makeFloor(W, D, 0, 0, 'wood', 10, 8);
+    this.makeFloor(10, 5, -5.5, 6, 'tile', 5, 3);
+    this.makeFloor(6, 10, 7.5, 1, 'wood', 3, 5);
+    this.makeFloor(4, 4, -8, 6.5, 'tile', 2, 2);
 
     const rug = new THREE.Mesh(
       new THREE.PlaneGeometry(5, 4),
-      new THREE.MeshBasicMaterial({ color: 0x7a4f32 })
+      new THREE.MeshLambertMaterial({ color: 0x7a4f32 })
     );
     rug.rotation.x = -Math.PI / 2;
     rug.position.set(-1, 0.02, -0.5);
@@ -345,10 +381,23 @@ class BerliozHunt {
     this.makeBox(1.8, 0.75, 0.9, 0x5c3d2e, 8, 0, -5, true);
     this.makeBox(1.2, 0.55, 0.6, 0xffffff, 6, 0, 6, true);
 
+    const labels = [
+      { x: -2, z: -2, c: 0x4a90d9 }, { x: -5, z: 6, c: 0xe67e22 },
+      { x: 7, z: 1, c: 0xc77dff }, { x: -8, z: 6.5, c: 0x55efc4 },
+    ];
+    labels.forEach(({ x, z, c }) => {
+      const pad = new THREE.Mesh(
+        new THREE.CircleGeometry(0.9, 16),
+        new THREE.MeshLambertMaterial({ color: c })
+      );
+      pad.rotation.x = -Math.PI / 2;
+      pad.position.set(x, 0.03, z);
+      this.scene.add(pad);
+    });
   }
 
   makePart(geo, color, x, y, z, group, opts = {}) {
-    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color }));
+    const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color }));
     mesh.position.set(x, y, z);
     if (opts.rx) mesh.rotation.x = opts.rx;
     if (opts.ry) mesh.rotation.y = opts.ry;
@@ -417,6 +466,7 @@ class BerliozHunt {
     this.makePart(legGeo, fur, 0.1, 0.08, -0.06, group);
 
     group.userData.tail = tail;
+    group.userData.isCat = true;
     return group;
   }
 
@@ -468,6 +518,7 @@ class BerliozHunt {
     this.attackers = [];
     this.reveal.active = false;
     this.reveal.time = 0;
+    this.hidePrepLeft = 0;
   }
 
   startGame() {
@@ -506,19 +557,21 @@ class BerliozHunt {
       document.getElementById('player-name').textContent = CHARS[this.selectedChar].name;
     } else {
       this.player = this.createBerlioz();
-      this.player.position.set(spot.x, 0, spot.z);
-      this.player.scale.set(1.2, 1.2, 1.2);
+      this.player.position.set(0, 0, 0);
+      this.player.scale.set(1.35, 1.35, 1.35);
       this.scene.add(this.player);
 
+      this.hidePrepLeft = HIDE_PREP_TIME;
+
       const robin = this.createHumanoid('robin');
-      robin.position.set(-3, 0, -2);
+      robin.position.set(-6, 0, -5);
       this.scene.add(robin);
       const maili = this.createHumanoid('maili');
-      maili.position.set(3, 0, -2);
+      maili.position.set(6, 0, -5);
       this.scene.add(maili);
       this.npcs = [robin, maili];
 
-      document.querySelector('.objective').textContent = 'Cache-toi 15 sec !';
+      document.querySelector('.objective').textContent = `Cours te cacher ! ${HIDE_PREP_TIME}s`;
       document.getElementById('player-name').textContent = 'Berlioz 🐱';
     }
     } catch (err) {
@@ -547,16 +600,33 @@ class BerliozHunt {
 
   updateTimer() {
     const el = document.getElementById('timer');
+    const objective = document.querySelector('.objective');
+    if (this.gameMode === 'hide' && this.hidePrepLeft > 0) {
+      el.textContent = this.hidePrepLeft;
+      el.classList.add('prep');
+      el.classList.remove('urgent');
+      objective.textContent = `Cours te cacher ! ${this.hidePrepLeft}s`;
+      return;
+    }
     el.textContent = Math.ceil(this.timeLeft);
+    el.classList.remove('prep');
     el.classList.toggle('urgent', this.timeLeft <= 5);
+    if (this.gameMode === 'hide') {
+      objective.textContent = 'Ils te cherchent… reste caché !';
+    }
+  }
+
+  isCatPlayer() {
+    return this.gameMode === 'hide' && this.player?.userData?.isCat;
   }
 
   checkCollision(x, z) {
     if (x < WORLD_BOUNDS.minX || x > WORLD_BOUNDS.maxX || z < WORLD_BOUNDS.minZ || z > WORLD_BOUNDS.maxZ) {
       return true;
     }
+    const shrink = this.isCatPlayer() ? 0.3 : 0;
     for (const c of this.colliders) {
-      if (Math.abs(x - c.x) < c.hw && Math.abs(z - c.z) < c.hd) return true;
+      if (Math.abs(x - c.x) < c.hw - shrink && Math.abs(z - c.z) < c.hd - shrink) return true;
     }
     return false;
   }
@@ -570,7 +640,7 @@ class BerliozHunt {
     dx /= len;
     dz /= len;
 
-    const speed = PLAYER_SPEED * dt;
+    const speed = (this.isCatPlayer() ? CAT_SPEED : PLAYER_SPEED) * dt;
     const nx = this.player.position.x + dx * speed;
     const nz = this.player.position.z + dz * speed;
 
@@ -664,7 +734,7 @@ class BerliozHunt {
   }
 
   checkHideMode(dt) {
-    if (this.gameMode !== 'hide' || !this.player) return;
+    if (this.gameMode !== 'hide' || !this.player || this.hidePrepLeft > 0) return;
 
     this.npcs.forEach((npc) => {
       const dir = new THREE.Vector3()
@@ -760,7 +830,7 @@ class BerliozHunt {
     this.selectedChar = char;
 
     if (char === 'berlioz') {
-      hint.textContent = '🐱 Mode cache-cache : survie 15 sec, évite Robin & Maili !';
+      hint.textContent = `🐱 Mode Berlioz : ${HIDE_PREP_TIME}s pour te cacher, puis 15s de chasse !`;
     } else {
       hint.textContent = `Tu joues ${CHARS[char].name}. Trouve Berlioz en 15 secondes !`;
     }
@@ -949,14 +1019,19 @@ class BerliozHunt {
     if (this.state === 'playing') {
       const now = performance.now();
       if (now - this.lastTimerUpdate >= 1000) {
-        this.timeLeft -= 1;
         this.lastTimerUpdate = now;
-        this.updateTimer();
-        if (this.timeLeft <= 0) {
-          if (this.gameMode === 'hide') {
-            this.win('survived');
-          } else {
-            this.triggerAttack();
+        if (this.gameMode === 'hide' && this.hidePrepLeft > 0) {
+          this.hidePrepLeft -= 1;
+          this.updateTimer();
+        } else {
+          this.timeLeft -= 1;
+          this.updateTimer();
+          if (this.timeLeft <= 0) {
+            if (this.gameMode === 'hide') {
+              this.win('survived');
+            } else {
+              this.triggerAttack();
+            }
           }
         }
       }
@@ -999,8 +1074,7 @@ class BerliozHunt {
         moveZ = world.z;
       }
 
-      const speedMul = this.gameMode === 'hide' ? 1.3 : 1;
-      this.movePlayer(moveX * speedMul, moveZ * speedMul, dt);
+      this.movePlayer(moveX, moveZ, dt);
       this.updateCamera();
       this.updateProximityHint();
       this.checkWin();
@@ -1059,9 +1133,10 @@ class BerliozHunt {
     if (this.player?.userData.type) animateHuman(this.player);
     this.npcs.forEach(animateHuman);
 
-    const cat = this.berlioz?.visible ? this.berlioz : (this.gameMode === 'hide' ? this.player : null);
+    const cat = this.berlioz?.visible ? this.berlioz : (this.isCatPlayer() ? this.player : null);
     if (cat?.userData.tail) {
-      cat.userData.tail.rotation.z = Math.sin(t * 5) * 0.35;
+      const wag = walk ? 0.6 : 0.35;
+      cat.userData.tail.rotation.z = Math.sin(t * (walk ? 12 : 5)) * wag;
     }
   }
 }
